@@ -1,0 +1,23 @@
+# Credentials - NEVER push
+backend/config.py
+.env
+*.env
+
+# Python
+venv/
+backend/venv/
+__pycache__/
+*.pyc
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Logs & data
+*.log
+*.csv
+*.db
+
+# OS
+Thumbs.db
+.DS_Store

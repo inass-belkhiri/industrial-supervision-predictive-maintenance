@@ -1,0 +1,306 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════════════════════
+   DARK MODE — fond uni #1b1b1c (style crypto)
+   ══════════════════════════════════════════════════════════════ */
+:root {
+  /* Arrière‑plan uni */
+  --bg-gradient:    #1b1b1c;
+  --bg-page:        #1b1b1c;
+
+  /* Cartes — toujours en verre */
+  --card-bg:        rgba(255, 255, 255, 0.04);
+  --card-border:    rgba(139, 92, 246, 0.18);
+  --card-blur:      blur(20px);
+  --card-shadow:    0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+
+  /* Header */
+  --bg-header:      rgba(10, 12, 26, 0.75);
+  --header-border:  rgba(139, 92, 246, 0.15);
+
+  /* Nav */
+  --bg-nav:         rgba(255,255,255,0.05);
+  --border-nav:     rgba(139, 92, 246, 0.15);
+  --nav-hover:      rgba(139, 92, 246, 0.12);
+
+  /* Text */
+  --text-primary:   #f0f0ff;
+  --text-secondary: #a8b0d8;
+  --text-muted:     #5a6490;
+
+  /* Scrollbar */
+  --scrollbar-bg:   rgba(255,255,255,0.03);
+  --scrollbar-thumb:rgba(139,92,246,0.35);
+
+  /* Calendar */
+  --calendar-bg:    rgba(255,255,255,0.05);
+  --calendar-border:rgba(139,92,246,0.2);
+  --calendar-header:rgba(255,255,255,0.04);
+
+  /* Heater group */
+  --heater-border:  rgba(139,92,246,0.2);
+  --heater-border-outer: rgba(128,128,128,0.3);
+
+  /* Misc */
+  --border-card:    rgba(139,92,246,0.18);
+  --glass-bg:       rgba(255,255,255,0.06);
+  --glass-border:   rgba(139,92,246,0.2);
+  --temp-normal:    #f0f0ff;
+  --bg-card:        rgba(255,255,255,0.04);
+  --bg-card-2:      rgba(255,255,255,0.06);
+  --postit-shadow:  3px 4px 12px rgba(0,0,0,0.4);
+
+  /* Couleurs des badges (dark mode : bleu ciel pour OK) */
+  --color-ok:       #38bdf8;
+  --bg-ok:          rgba(56,189,248,0.08);
+  --border-ok:      rgba(56,189,248,0.25);
+
+  --color-faible:   #38bdf8;
+  --bg-faible:      rgba(56,189,248,0.08);
+  --border-faible:  rgba(56,189,248,0.25);
+
+  --color-moyen:    #f59e0b;
+  --bg-moyen:       rgba(245,158,11,0.08);
+  --border-moyen:   rgba(245,158,11,0.25);
+
+  --color-haute:    #f97316;
+  --bg-haute:       rgba(249,115,22,0.08);
+  --border-haute:   rgba(249,115,22,0.25);
+
+  --color-urgent:   #ef4444;
+  --bg-urgent:      rgba(239,68,68,0.08);
+  --border-urgent:  rgba(239,68,68,0.25);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LIGHT MODE — soft lavender/white gradient + frosted glass
+   ══════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  --bg-gradient:    linear-gradient(135deg, #eeeaff 0%, #f5f0ff 30%, #ebe8ff 60%, #f0eeff 100%);
+  --bg-page:        #ede9ff;
+
+  --card-bg:        rgba(255, 255, 255, 0.55);
+  --card-border:    rgba(139, 92, 246, 0.2);
+  --card-blur:      blur(20px);
+  --card-shadow:    0 4px 24px rgba(109,40,217,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+
+  --bg-header:      rgba(255, 255, 255, 0.65);
+  --header-border:  rgba(139, 92, 246, 0.18);
+
+  --bg-nav:         rgba(255,255,255,0.45);
+  --border-nav:     rgba(139,92,246,0.18);
+  --nav-hover:      rgba(139,92,246,0.1);
+
+  --text-primary:   #1a1040;
+  --text-secondary: #4a3880;
+  --text-muted:     #8878b0;
+
+  --scrollbar-bg:   rgba(139,92,246,0.06);
+  --scrollbar-thumb:rgba(139,92,246,0.3);
+
+  --calendar-bg:    rgba(255,255,255,0.6);
+  --calendar-border:rgba(139,92,246,0.2);
+  --calendar-header:rgba(255,255,255,0.5);
+
+  --heater-border:  rgba(139,92,246,0.3);
+  --heater-border-outer: rgba(128,128,128,0.2);
+
+  --border-card:    rgba(139,92,246,0.2);
+  --glass-bg:       rgba(255,255,255,0.55);
+  --glass-border:   rgba(139,92,246,0.2);
+  --temp-normal:    #1a1040;
+  --bg-card:        rgba(255,255,255,0.55);
+  --bg-card-2:      rgba(255,255,255,0.7);
+  --postit-shadow:  3px 4px 16px rgba(109,40,217,0.12);
+
+  /* Light mode : OK devient vert */
+  --color-ok:       #10b981;
+  --bg-ok:          rgba(16,185,129,0.08);
+  --border-ok:      rgba(16,185,129,0.25);
+
+  --color-faible:   #38bdf8;
+  --bg-faible:      rgba(56,189,248,0.08);
+  --border-faible:  rgba(56,189,248,0.25);
+
+  --color-moyen:    #f59e0b;
+  --bg-moyen:       rgba(245,158,11,0.08);
+  --border-moyen:   rgba(245,158,11,0.25);
+
+  --color-haute:    #f97316;
+  --bg-haute:       rgba(249,115,22,0.08);
+  --border-haute:   rgba(249,115,22,0.25);
+
+  --color-urgent:   #ef4444;
+  --bg-urgent:      rgba(239,68,68,0.08);
+  --border-urgent:  rgba(239,68,68,0.25);
+}
+
+/* ── Base reset ────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { height: 100%; }
+
+body {
+  font-family: 'DM Sans', 'Inter', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: color 0.35s ease;
+  color: var(--text-primary);
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+}
+
+/* Subtle noise texture overlay for depth */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root { position: relative; z-index: 1; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: var(--scrollbar-bg); }
+::-webkit-scrollbar-thumb  { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+/* ── Component classes ─────────────────────────────────────── */
+@layer components {
+
+  /* Navigation button */
+  .nav-btn {
+    @apply relative px-6 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 cursor-pointer select-none;
+  }
+  .nav-btn-active {
+    @apply bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/30;
+  }
+  .nav-btn-inactive { color: var(--text-secondary); }
+  .nav-btn-inactive:hover { color: var(--text-primary); background: var(--nav-hover); }
+
+  /* Glass card — main reusable style */
+  .card {
+    background: var(--card-bg);
+    backdrop-filter: var(--card-blur);
+    -webkit-backdrop-filter: var(--card-blur);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    box-shadow: var(--card-shadow);
+    transition: background 0.35s ease, border-color 0.35s ease;
+  }
+
+  .card-glass {
+    background: var(--glass-bg);
+    backdrop-filter: var(--card-blur);
+    -webkit-backdrop-filter: var(--card-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: var(--card-shadow);
+    transition: background 0.35s ease;
+  }
+
+  /* Status badges */
+  .status-ok    { color:#10b981; background:rgba(16,185,129,0.12);  border:1px solid rgba(16,185,129,0.3);  border-radius:9999px; padding:2px 10px; }
+  .status-alert { color:#ef4444; background:rgba(239,68,68,0.12);   border:1px solid rgba(239,68,68,0.3);   border-radius:9999px; padding:2px 10px; }
+  .status-error { color:#f59e0b; background:rgba(245,158,11,0.12);  border:1px solid rgba(245,158,11,0.3);  border-radius:9999px; padding:2px 10px; }
+
+  .urgency-ok     { color:#10b981; }
+  .urgency-faible { color:#38bdf8; }
+  .urgency-moyen  { color:#f59e0b; }
+  .urgency-haute  { color:#f97316; }
+  .urgency-urgent { color:#ef4444; }
+
+  /* Post-it */
+  .postit {
+    border-radius: 10px;
+    box-shadow: var(--postit-shadow);
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .postit:hover { transform: translateY(-3px); }
+
+  /* Theme toggle button */
+  .theme-toggle {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--card-bg);
+    backdrop-filter: var(--card-blur);
+    border: 1px solid var(--card-border);
+    cursor: pointer; transition: all 0.2s ease;
+    color: var(--text-secondary);
+  }
+  .theme-toggle:hover {
+    background: var(--nav-hover);
+    color: var(--text-primary);
+    transform: scale(1.08);
+  }
+}
+
+/* ── Animations ────────────────────────────────────────────── */
+.gauge-ring { transition: stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1); }
+
+.blink { animation: blink-anim 1s step-end infinite; }
+@keyframes blink-anim { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.fade-in { animation: fadeIn 0.4s ease-out; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── Light mode tailwind overrides ─────────────────────────── */
+[data-theme="light"] .text-slate-100 { color: #1a1040 !important; }
+[data-theme="light"] .text-slate-200 { color: #2d2060 !important; }
+[data-theme="light"] .text-slate-300 { color: #3d3070 !important; }
+[data-theme="light"] .text-slate-400 { color: #5a4890 !important; }
+[data-theme="light"] .text-slate-500 { color: #7868a8 !important; }
+[data-theme="light"] .text-slate-600 { color: #9888c0 !important; }
+[data-theme="light"] .text-slate-700 { color: #b8a8d8 !important; }
+[data-theme="light"] .bg-slate-800   { background-color: rgba(255,255,255,0.4) !important; }
+[data-theme="light"] .bg-slate-900   { background-color: rgba(255,255,255,0.3) !important; }
+[data-theme="light"] .border-slate-800 { border-color: rgba(139,92,246,0.2) !important; }
+
+/* Recharts tooltip glass */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--card-bg) !important;
+  backdrop-filter: var(--card-blur) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: 10px !important;
+  color: var(--text-primary) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ADDITIONS POUR L'ONGLET MAINTENANCE PREDICTIVE
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Calendar 3D folded corner effect ────────────────────────────── */
+.calendar-3d {
+  position: relative;
+}
+.calendar-3d::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 30px 30px 0;
+  border-color: transparent var(--calendar-border) transparent transparent;
+  filter: drop-shadow(-2px 2px 2px rgba(0,0,0,0.1));
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ── Circular attention box for "En attente" ─────────────────────── */
+.attention-circle {
+  border-radius: 50px !important;
+  border: 3px dashed #ef4444 !important;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}

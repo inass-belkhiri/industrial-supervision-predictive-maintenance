@@ -83,49 +83,64 @@ function ConfidenceBar({ value, color }) {
 }
 
 const CAUSE_LABELS = {
-  NORMAL:             'Fonctionnement normal',
-  POMPE_DEFAILLANTE:  'Pompe defaillante',
-  BULLES_AIR:         'Bulles d\'air dans le circuit',
-  NIVEAU_BAS:         'Niveau d\'eau bas / Vanne',
-  CALCAIRE:           'Encrassement calcaire',
+  CALCAIRE_TUYAUX:           'Encrassement calcaire des tuyaux',
+  HEATER_POMPE_HS:           'Pompe heater hors service',
+  HEATER_RESISTANCE_HS:      'Resistance heater hors service',
+  NIVEAU_BAS_VANNE_PANNE:    'Niveau bas / Vanne en panne',
+  BULLES_AIR:                'Bulles d\'air dans le circuit',
+  FUITE_CIRCUIT:             'Fuite sur le circuit hydraulique',
+  ISOLATION_DEGRADEE:        'Isolation thermique degradee',
 }
 
 const CAUSE_COLORS = {
-  NORMAL:             '#34d399',
-  POMPE_DEFAILLANTE:  '#f87171',
-  BULLES_AIR:         '#60a5fa',
-  NIVEAU_BAS:         '#fbbf24',
-  CALCAIRE:           '#c084fc',
+  CALCAIRE_TUYAUX:           '#c084fc',  // purple
+  HEATER_POMPE_HS:           '#f87171',  // red
+  HEATER_RESISTANCE_HS:      '#ef4444',  // dark red
+  NIVEAU_BAS_VANNE_PANNE:    '#fbbf24',  // amber
+  BULLES_AIR:                '#60a5fa',  // blue
+  FUITE_CIRCUIT:             '#f97316',  // orange
+  ISOLATION_DEGRADEE:        '#a78bfa',  // light purple
 }
 
 const CAUSE_ACTIONS = {
-  POMPE_DEFAILLANTE: [
-    'Verifier l\'alimentation electrique de la pompe',
-    'Controler le condensateur de demarrage',
-    'Inspecter l\'impeller (roue de pompe)',
-    'Verifier le pressostat et la soupape',
+  CALCAIRE_TUYAUX: [
+    'Verifier niveau et dosage de l\'additif anti-calcaire',
+    'Controler le systeme de dosage automatique de l\'additif',
+    'Consulter l\'onglet Maintenance Predictive pour la date de detartrage planifiee',
+    'Si debit < seuil critique : Planifier detartrage chimique immediatement',
+    'Surveiller evolution debit toutes les 4h',
+  ],
+  HEATER_POMPE_HS: [
+    'Verifier debit pompe heater (nominal: 16.5 L/min)',
+    'Ecouter bruits anormaux/vibrations pompe',
+    'Verifier alimentation electrique pompe',
+    'Inspecter roue pompe (usure, blocage, cavitation)',
+  ],
+  HEATER_RESISTANCE_HS: [
+    'Mesurer T_heater (doit etre 45°C ± 1°C)',
+    'Verifier alimentation electrique resistance',
+    'Tester continuite resistance (multimetre)',
+    'Verifier regulation temperature PID',
+  ],
+  NIVEAU_BAS_VANNE_PANNE: [
+    'Verifier niveau reservoir visuellement',
+    'Tester vanne appoint manuellement',
+    'Verifier commande electrique vanne (automate)',
   ],
   BULLES_AIR: [
-    'Purger le circuit hydraulique principal',
-    'Verifier les joints des moules affectes',
-    'Controler les raccords sur la ligne de retour',
-    'Verifier le niveau d\'eau dans le heater',
+    'Purger circuit hydraulique immediatement',
+    'Verifier niveau reservoir (doit etre > 50%)',
+    'Inspecter joints pompe',
+    'Surveiller stabilite temperature 30 min post-purge',
   ],
-  NIVEAU_BAS: [
-    'Verifier le niveau d\'eau dans le heater',
-    'Controler l\'ouverture de la vanne d\'alimentation',
-    'Inspecter les capteurs de niveau',
-    'Rechercher une fuite sur le circuit',
+  FUITE_CIRCUIT: [
+    'Inspecter visuellement circuit complet',
+    'Rechercher fuites (joints, raccords, tuyaux)',
+    'Mesurer pression circuit si possible',
+    'Reparer fuite identifiee',
   ],
-  CALCAIRE: [
-    'Planifier un detartrage chimique',
-    'Commander les produits de detartrage',
-    'Consulter l\'onglet Maintenance Predictive',
-    'Verifier la concentration de l\'additif anti-calcaire',
-  ],
-  NORMAL: [
-    'Aucune action requise',
-    'Continuer la surveillance en temps reel',
+  ISOLATION_DEGRADEE: [
+    'Inspecter isolation moule visuellement',
   ],
 }
 
@@ -154,11 +169,16 @@ export default function DiagnosticTab({ diagnostic = null }) {
     anomaly_score    = null,
     timestamp        = null,
     features         = {},
+    // AMDEC fields from backend
+    amdec_criticite  = null,
+    amdec_priorite   = null,
+    actions          = null,
   } = diagnostic ?? {}
 
-  const causeLabel  = CAUSE_LABELS[cause]  ?? cause
-  const causeColor  = CAUSE_COLORS[cause]  ?? '#94a3b8'
-  const actions     = CAUSE_ACTIONS[cause] ?? CAUSE_ACTIONS.NORMAL
+  const causeLabel  = CAUSE_LABELS[cause] ?? cause
+  const causeColor  = CAUSE_COLORS[cause] ?? '#94a3b8'
+  // Use actions from backend if available, otherwise use static CAUSE_ACTIONS
+  const actionsList = actions ?? (CAUSE_ACTIONS[cause] || ['Aucune action requise'])
 
   const formattedTime = useMemo(() => {
     if (!timestamp) return '--'
@@ -167,10 +187,20 @@ export default function DiagnosticTab({ diagnostic = null }) {
     } catch { return '--' }
   }, [timestamp])
 
+  // Helper to get criticite color
+  const getCriticiteColor = (criticite) => {
+    if (criticite >= 120) return '#ef4444'  // red - very critical
+    if (criticite >= 60) return '#f97316'   // orange - critical
+    if (criticite >= 30) return '#fbbf24'   // amber - moderate
+    return '#22c55e'  // green - low
+  }
+
+  const criticiteColor = amdec_criticite ? getCriticiteColor(amdec_criticite) : null
+
   return (
     <div className="flex flex-col gap-6 fade-in">
 
-      {/* Status banner */}
+      {/* Status banner with AMDEC info */}
       <div
         className="card-glass p-5 flex items-start gap-5"
         style={{ borderColor: `${causeColor}33` }}
@@ -198,10 +228,47 @@ export default function DiagnosticTab({ diagnostic = null }) {
             >
               {causeLabel}
             </span>
+            {/* AMDEC Priority Badge */}
+            {amdec_priorite != null && (
+              <span
+                className="text-xs font-bold px-3 py-1 rounded-full border"
+                style={{
+                  color: criticiteColor,
+                  borderColor: `${criticiteColor}44`,
+                  background: `${criticiteColor}18`
+                }}
+              >
+                Priorite AMDEC: {amdec_priorite}/7
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-400 mt-1">
             Derniere analyse : {formattedTime}
           </p>
+
+          {/* AMDEC Criticite Bar */}
+          {amdec_criticite != null && (
+            <div className="mt-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500">Criticite AMDEC:</span>
+                <div className="flex-1 max-w-xs">
+                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min((amdec_criticite / 200) * 100, 100)}%`,
+                        background: criticiteColor,
+                      }}
+                    />
+                  </div>
+                </div>
+                <span className="text-xs font-bold" style={{ color: criticiteColor }}>
+                  {amdec_criticite} (G×O×D)
+                </span>
+              </div>
+            </div>
+          )}
+
           {affected_molds.length > 0 && (
             <div className="mt-3">
               <div className="text-xs text-slate-500 mb-2">Moules affectes</div>
@@ -262,11 +329,18 @@ export default function DiagnosticTab({ diagnostic = null }) {
 
         {/* Right: post-it recommended actions */}
         <div className="card p-5 flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-slate-300">
-            Actions recommandees
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-300">
+              Actions recommandees
+            </h3>
+            {amdec_priorite != null && (
+              <span className="text-xs text-slate-500">
+                {actionsList.length} action(s)
+              </span>
+            )}
+          </div>
           <div className="flex flex-wrap gap-4 items-start pt-2" style={{ position: 'relative' }}>
-            {actions.map((action, i) => (
+            {actionsList.map((action, i) => (
               <PostItCard key={i} text={action} index={i} />
             ))}
           </div>
@@ -292,7 +366,19 @@ export default function DiagnosticTab({ diagnostic = null }) {
                 <span className="text-slate-300 flex-1">
                   {CAUSE_LABELS[evt.cause] ?? evt.cause}
                 </span>
-                <span className="text-slate-500 text-xs">
+                {/* AMDEC priority in history */}
+                {evt.amdec_priorite != null && (
+                  <span
+                    className="text-xs font-medium px-2 py-0.5 rounded"
+                    style={{
+                      background: `${getCriticiteColor(evt.amdec_criticite ?? 0)}22`,
+                      color: getCriticiteColor(evt.amdec_criticite ?? 0),
+                    }}
+                  >
+                    P{evt.amdec_priorite}
+                  </span>
+                )}
+                <span className="text-slate-500 text-xs w-10 text-right">
                   {evt.confidence != null ? `${(evt.confidence * 100).toFixed(0)}%` : ''}
                 </span>
               </div>

@@ -24,6 +24,7 @@ from datetime import datetime
 from collections import deque
 from typing import Dict, List, Set, Tuple
 
+import requests
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -153,13 +154,27 @@ async def _cycle():
                 for k in TEMP_HISTORY
             )
             flow_drop = flow_lpm < 0.5 * config.FLOW_DEFAULT_LPM
+            # Get T_heater (assume first sensor reading or separate query)
+            temp_heater = config.T_HEATER  # Using config value
+
             rule_result = rf.physical_rules(
-                affected_ratio=affected_ratio, sudden_drop=sudden_drop,
-                flow_rate=flow_lpm, flow_drop=flow_drop,
+                affected_ratio=affected_ratio,
+                sudden_drop=sudden_drop,
+                flow_rate=flow_lpm,
+                flow_drop=flow_drop,
+                temp_heater=temp_heater,
             )
             cause_result = rule_result if rule_result else (
                 rf.predict(features) if rf.trained else cause_result
             )
+
+            # ENRICHISSEMENT AMDEC (NOUVEAU)
+            cause = cause_result.get('cause')
+            if cause and cause in config.AMDEC_FAILURE_MODES:
+                amdec_info = config.AMDEC_FAILURE_MODES[cause]
+                cause_result['amdec_criticite'] = amdec_info['criticite']
+                cause_result['amdec_priorite'] = amdec_info['priorite']
+                cause_result['actions'] = amdec_info['actions']
             diagnostic_history.append({
                 'timestamp':  datetime.now().isoformat(),
                 'cause':      cause_result['cause'],
@@ -203,6 +218,30 @@ async def _cycle():
             'Methode':  cause_result.get('method', '--'),
         },
     }
+
+    # ENVOI WEBHOOK N8N (NOUVEAU)
+    if anomaly_result['anomaly_detected']:
+        try:
+            requests.post(
+                config.N8N_WEBHOOK_ALERT,
+                json={
+                    'timestamp': datetime.now().isoformat(),
+                    'severity': 'CRITICAL' if any(
+                        s.get('status') == 'ALERTE' for s in latest_sensors
+                    ) else 'WARNING',
+                    'cause': cause_result.get('cause'),
+                    'confidence': cause_result.get('confidence'),
+                    'amdec_criticite': cause_result.get('amdec_criticite'),
+                    'amdec_priorite': cause_result.get('amdec_priorite'),
+                    'actions': cause_result.get('actions', []),
+                    'affected_molds': affected_molds,
+                    'alert_type': 'THERMAL_ANOMALY'
+                },
+                timeout=5
+            )
+            log.info("Alert sent to n8n webhook")
+        except Exception as e:
+            log.warning("n8n webhook failed: %s", e)
 
     influx.write_sensors(readings, delta_T_map)
     await _broadcast_all()

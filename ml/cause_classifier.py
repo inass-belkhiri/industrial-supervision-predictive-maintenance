@@ -20,7 +20,15 @@ log = logging.getLogger(__name__)
 MODEL_PATH   = 'models/random_forest.pkl'
 ENCODER_PATH = 'models/label_encoder.pkl'
 
-CLASSES = ['NORMAL', 'POMPE_DEFAILLANTE', 'BULLES_AIR', 'NIVEAU_BAS', 'CALCAIRE']
+CLASSES = [
+    'CALCAIRE_TUYAUX',
+    'HEATER_POMPE_HS',
+    'HEATER_RESISTANCE_HS',
+    'NIVEAU_BAS_VANNE_PANNE',
+    'BULLES_AIR',
+    'FUITE_CIRCUIT',
+    'ISOLATION_DEGRADEE'
+]
 
 
 class CauseClassifier:
@@ -58,16 +66,25 @@ class CauseClassifier:
         sudden_drop:      bool,
         flow_rate:        float,
         flow_drop:        bool,
+        temp_heater:      float = 45.0,
         nominal_flow:     float = 16.5,
     ) -> Optional[Dict]:
         """
         Apply deterministic physical rules.
         Returns a result dict if the case is certain, or None for ambiguous cases.
         """
+        # Heater resistance failure: T_heater significantly below setpoint
+        if temp_heater < 44.0 and affected_ratio > 0.8:
+            return {
+                'cause':      'HEATER_RESISTANCE_HS',
+                'confidence': 1.0,
+                'method':     'physical_rule',
+            }
+
         # Pump failure: sudden global drop + flow collapse
         if affected_ratio > 0.8 and sudden_drop and flow_drop:
             return {
-                'cause':      'POMPE_DEFAILLANTE',
+                'cause':      'HEATER_POMPE_HS',
                 'confidence': 1.0,
                 'method':     'physical_rule',
             }
@@ -75,7 +92,7 @@ class CauseClassifier:
         # Low water level / valve issue: many molds affected, flow very low but not zero
         if affected_ratio > 0.7 and flow_rate < 0.3 * nominal_flow and not sudden_drop:
             return {
-                'cause':      'NIVEAU_BAS',
+                'cause':      'NIVEAU_BAS_VANNE_PANNE',
                 'confidence': 1.0,
                 'method':     'physical_rule',
             }
@@ -148,22 +165,28 @@ class CauseClassifier:
         variance:              float,
         R_squared:             float,
         delta_T_calcaire_slope: float,
+        temp_heater:           float = 45.0,
         variance_threshold:    float = 0.1,
         nominal_flow:          float = 16.5,
     ) -> str:
         """
         Rule-based auto-labeling to generate training data from unlabeled history.
-        Used in bootstrap phase before enough labeled pannes are available.
         """
+        if temp_heater < 44.0 and affected_ratio > 0.8:
+            return 'HEATER_RESISTANCE_HS'
         if affected_ratio > 0.8 and sudden_drop and flow_drop:
-            return 'POMPE_DEFAILLANTE'
+            return 'HEATER_POMPE_HS'
         if affected_ratio > 0.7 and flow_rate < 0.3 * nominal_flow:
-            return 'NIVEAU_BAS'
+            return 'NIVEAU_BAS_VANNE_PANNE'
         if variance > variance_threshold and R_squared < 0.3 and affected_ratio < 0.4:
             return 'BULLES_AIR'
         if delta_T_calcaire_slope > 0.03 and R_squared > 0.85:
-            return 'CALCAIRE'
-        return 'NORMAL'
+            return 'CALCAIRE_TUYAUX'
+        if affected_ratio < 0.3 and R_squared > 0.7:
+            return 'ISOLATION_DEGRADEE'
+        # Si aucune condition : on pourrait retourner la classe la plus probable
+        # ou lever une exception, selon le contexte d'utilisation
+        return 'FUITE_CIRCUIT'  # Classe par défaut pour cas ambigus
 
     # ── Persistence ──────────────────────────────────────────────────────────
 

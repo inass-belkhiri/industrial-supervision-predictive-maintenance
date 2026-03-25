@@ -1,0 +1,140 @@
+{
+  "name": "Yazaki - Alertes Temps Réel",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "alerte",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook Alertes",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 300],
+      "webhookId": "yazaki-alert"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{$json.severity}}",
+                    "value2": "WARNING"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "warning"
+            },
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{$json.severity}}",
+                    "value2": "CRITICAL"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "critical"
+            },
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{$json.alert_type}}",
+                    "value2": "SYSTEM_FAILURE"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "system"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Switch Sévérité",
+      "type": "n8n-nodes-base.switch",
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_OPERATORS_ID}}",
+        "text": "⚠️ *Alerte Température*\n\n🔸 Sévérité: WARNING\n🔸 Cause: {{$json.cause}}\n🔸 Confiance ML: {{$json.confidence}}%\n🔸 Priorité AMDEC: #{{$json.amdec_priorite}}\n\n📋 Actions:\n{{$json.actions.join('\\n')}}\n\n🕐 {{$json.timestamp}}",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "name": "Telegram Opérateurs (Warning)",
+      "type": "n8n-nodes-base.telegram",
+      "position": [650, 200],
+      "credentials": {
+        "telegramApi": "Telegram Yazaki Bot"
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_OPERATORS_ID}}",
+        "text": "🔴 *ALERTE CRITIQUE*\n\n⚠️ Température < 42°C\n🔸 Cause: {{$json.cause}}\n🔸 Confiance ML: {{$json.confidence}}%\n🔸 Criticité AMDEC: {{$json.amdec_criticite}}\n🔸 Priorité: #{{$json.amdec_priorite}}\n\n📋 Actions URGENTES:\n{{$json.actions.join('\\n')}}\n\n🕐 {{$json.timestamp}}",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "name": "Telegram Opérateurs (Critical)",
+      "type": "n8n-nodes-base.telegram",
+      "position": [650, 300],
+      "credentials": {
+        "telegramApi": "Telegram Yazaki Bot"
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHEF_ID}}",
+        "text": "🔴 *ALERTE CRITIQUE - INTERVENTION REQUISE*\n\n⚠️ Température < 42°C\n🔸 Cause: {{$json.cause}}\n🔸 Priorité AMDEC: #{{$json.amdec_priorite}}\n🔸 Criticité: {{$json.amdec_criticite}}\n\n📋 Actions:\n{{$json.actions.join('\\n')}}\n\n🕐 {{$json.timestamp}}",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "name": "Telegram Chef Équipe",
+      "type": "n8n-nodes-base.telegram",
+      "position": [650, 400],
+      "credentials": {
+        "telegramApi": "Telegram Yazaki Bot"
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "monitoring@yazaki.ma",
+        "toEmail": "chef.equipe@yazaki.ma",
+        "subject": "🔴 ALERTE CRITIQUE - Supervision Thermique",
+        "emailFormat": "html",
+        "message": "<h2>Alerte Critique Détectée</h2><p><strong>Cause:</strong> {{$json.cause}}</p><p><strong>Priorité AMDEC:</strong> #{{$json.amdec_priorite}}</p><p><strong>Criticité:</strong> {{$json.amdec_criticite}}</p><h3>Actions Recommandées:</h3><ul>{{$json.actions.map(a => '<li>' + a + '</li>').join('')}}</ul><p><em>{{$json.timestamp}}</em></p>"
+      },
+      "name": "Email Chef Équipe",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [650, 500],
+      "credentials": {
+        "smtp": "SMTP Yazaki"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Alertes": {
+      "main": [[{"node": "Switch Sévérité", "type": "main", "index": 0}]]
+    },
+    "Switch Sévérité": {
+      "main": [
+        [{"node": "Telegram Opérateurs (Warning)", "type": "main", "index": 0}],
+        [
+          {"node": "Telegram Opérateurs (Critical)", "type": "main", "index": 0},
+          {"node": "Telegram Chef Équipe", "type": "main", "index": 0},
+          {"node": "Email Chef Équipe", "type": "main", "index": 0}
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "name": "Yazaki - Rapport Quotidien Excel",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "cronExpression", "expression": "0 23 * * *"}]
+        }
+      },
+      "name": "Cron 23h00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "query": "SELECT mean(temperature) as temp_mean, min(temperature) as temp_min, max(temperature) as temp_max FROM temperature WHERE time > now() - 1d GROUP BY mold_id",
+        "database": "sensors"
+      },
+      "name": "InfluxDB Températures",
+      "type": "n8n-nodes-base.influxDb",
+      "position": [450, 200],
+      "credentials": {"influxDb": "InfluxDB Local"}
+    },
+    {
+      "parameters": {
+        "query": "SELECT * FROM alerts WHERE time > now() - 1d ORDER BY time DESC",
+        "database": "sensors"
+      },
+      "name": "InfluxDB Alertes",
+      "type": "n8n-nodes-base.influxDb",
+      "position": [450, 400],
+      "credentials": {"influxDb": "InfluxDB Local"}
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "fileFormat": "xlsx",
+        "fileName": "rapport_yazaki_{{$now.format('YYYY-MM-DD')}}",
+        "sheets": [
+          {"name": "Températures", "columns": "={{$node['InfluxDB Températures'].json}}"},
+          {"name": "Alertes", "columns": "={{$node['InfluxDB Alertes'].json}}"}
+        ]
+      },
+      "name": "Générer Excel",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "monitoring@yazaki.ma",
+        "toEmail": "chef.equipe@yazaki.ma",
+        "subject": "📊 Rapport Quotidien - {{$now.format('DD/MM/YYYY')}}",
+        "emailFormat": "html",
+        "message": "<h2>Rapport Quotidien Supervision Thermique</h2><p>Veuillez trouver ci-joint le rapport Excel.</p>",
+        "attachments": "data:@={{$node['Générer Excel'].json.data}}"
+      },
+      "name": "Email + Excel",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [850, 300],
+      "credentials": {"smtp": "SMTP Yazaki"}
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHEF_ID}}",
+        "text": "📊 Rapport quotidien {{$now.format('DD/MM/YYYY')}} envoyé par email"
+      },
+      "name": "Telegram Notification",
+      "type": "n8n-nodes-base.telegram",
+      "position": [850, 400],
+      "credentials": {"telegramApi": "Telegram Yazaki Bot"}
+    }
+  ],
+  "connections": {
+    "Cron 23h00": {
+      "main": [[
+        {"node": "InfluxDB Températures", "type": "main", "index": 0},
+        {"node": "InfluxDB Alertes", "type": "main", "index": 0}
+      ]]
+    },
+    "InfluxDB Températures": {"main": [[{"node": "Générer Excel", "type": "main", "index": 0}]]},
+    "InfluxDB Alertes": {"main": [[{"node": "Générer Excel", "type": "main", "index": 0}]]},
+    "Générer Excel": {"main": [[
+      {"node": "Email + Excel", "type": "main", "index": 0},
+      {"node": "Telegram Notification", "type": "main", "index": 0}
+    ]]}
+  }
+}

@@ -142,11 +142,15 @@ python main.py
 - n8n via PM2
 
   - Installer n8n globalement
-npm install -g n8n
+    
+    npm install -g n8n
 
-- Lancer avec PM2
-pm2 start n8n --name "n8n-workflows"
-pm2 save
-pm2 startup
+  - Lancer avec PM2
+    
+    pm2 start n8n --name "n8n-workflows"
+    
+    pm2 save
+    
+    pm2 startup
 
 

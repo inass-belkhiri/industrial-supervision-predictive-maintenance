@@ -172,58 +172,7 @@ echo "INFLUXDB_TOKEN=votre-token" >> backend/.env
 # Frontend
 echo "VITE_API_URL=http://localhost:8000" >> frontend/.env
 ```
-## 📁 Structure du Projet
+## 📁 Structure du Projet## 
 
 <details>
-<summary><b>📂 Cliquez pour voir la structure complète</b></summary>
-
-supervision_thermique/
-├── backend/
-│ ├── config.py.example
-│ ├── influxdb_manager.py
-│ ├── main.py
-│ ├── modbus_manager.py
-│ └── requirements.txt
-├── frontend/
-│ ├── src/
-│ │ ├── components/
-│ │ │ ├── CircularGauge.jsx
-│ │ │ ├── DiagnosticTab.jsx
-│ │ │ ├── MaintenanceTab.jsx
-│ │ │ ├── MoldCard.jsx
-│ │ │ └── SupervisionTab.jsx
-│ │ ├── hooks/
-│ │ │ └── useWebSocket.js
-│ │ ├── App.jsx
-│ │ ├── index.css
-│ │ └── main.jsx
-│ ├── index.html
-│ ├── package.json
-│ ├── postcss.config.js
-│ ├── tailwind.config.js
-│ └── vite.config.js
-├── ml/
-│ ├── anomaly_detector.py
-│ ├── cause_classifier.py
-│ ├── grey_box.py
-│ └── ridge_predictor.py
-├── n8n_workflows/
-│ ├── workflow_1_alertes.json
-│ └── workflow_2_rapport_quotidien.json
-├── tests/
-│ ├── test_modbus.py
-│ ├── test_ml.py
-│ ├── test_api.py
-│ └── test_websocket.py
-├── docs/
-│ └── images/
-│ ├── architecture.png
-│ ├── dashboard.png
-│ ├── n8n_workflow.png
-│ └── led_alert.jpg
-├── .gitignore
-├── setup_rpi.sh
-└── README.md
-
-
-</details>
+<summary><b>📂 Cliquez pour voir la structure complète du projet</b></summary>

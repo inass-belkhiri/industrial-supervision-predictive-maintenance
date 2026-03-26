@@ -1,0 +1,185 @@
+# config.py.example
+# Exemple de configuration pour le backend
+# Copiez ce fichier vers config.py et adaptez les valeurs à votre environnement
+
+# ── MODBUS ────────────────────────────────────────────────────────────────────
+MODBUS_PORT      = '/dev/ttyUSB0'
+MODBUS_BAUDRATE  = 9600
+MODBUS_PARITY    = 'N'
+MODBUS_STOPBITS  = 1
+MODBUS_BYTESIZE  = 8
+MODBUS_TIMEOUT   = 1       # seconds
+
+# MODBUS slave addresses for the 12 temperature sensors
+# Format: { mold_key: (slave_address, register_address) }
+SENSOR_MAP = {
+    (1, 1): (1, 0),
+    (1, 2): (2, 0),
+    (1, 3): (3, 0),
+    (2, 1): (4, 0),
+    (2, 2): (5, 0),
+    (2, 3): (6, 0),
+    (3, 1): (7, 0),
+    (3, 2): (8, 0),
+    (3, 3): (9, 0),
+    (4, 1): (10, 0),
+    (4, 2): (11, 0),
+    (4, 3): (12, 0),
+}
+
+# Position labels per mold_id within a group
+POSITION_MAP = {
+    1: 'gauche',
+    2: 'centre',
+    3: 'droite',
+}
+
+TEMP_SCALE_FACTOR = 0.1
+
+# ── TEMPERATURE THRESHOLDS ────────────────────────────────────────────────────
+T_HEATER          = 45.0    # heater setpoint (degrees C)
+T_MOLD_CRITICAL   = 42.0    # minimum acceptable mold temperature
+T_TOLERANCE       = 3.0     # process tolerance (degrees C)
+
+# ── INFLUXDB ─────────────────────────────────────────────────────────────────
+INFLUX_URL    = 'http://localhost:8086'
+INFLUX_TOKEN  = 'YOUR_INFLUX_TOKEN_HERE'
+INFLUX_ORG    = 'temperature-monitoring'
+INFLUX_BUCKET = 'sensors'
+
+# ── TELEGRAM ──────────────────────────────────────────────────────────────────
+TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE'
+TELEGRAM_CHAT_ID   = 'YOUR_CHAT_ID_HERE'
+
+# ── LED STRIP (GPIO) ──────────────────────────────────────────────────────────
+LED_GPIO_PIN   = 18
+LED_COUNT      = 30
+LED_BRIGHTNESS = 128
+
+# ── FLOW SENSOR ───────────────────────────────────────────────────────────────
+FLOW_SENSOR_ENABLED  = False
+FLOW_DEFAULT_LPM     = 16.5   # L/min used when sensor is disabled
+FLOW_SENSOR_SLAVE    = 13
+FLOW_SENSOR_REGISTER = 0
+
+# ── GREY-BOX PHYSICAL PARAMETERS ─────────────────────────────────────────────
+PIPE_DIAMETER    = 0.013    # m  (13 mm)
+PIPE_LENGTH      = 3.0      # m
+LAMBDA_CALCAIRE  = 1.0      # W/(m.K)
+N_MOLDS          = 12
+RHO_WATER        = 1000.0   # kg/m3
+CP_WATER         = 4186.0   # J/(kg.K)
+
+# ── MACHINE LEARNING ──────────────────────────────────────────────────────────
+FEATURE_WINDOW_SECONDS  = 30
+RIDGE_MIN_DAYS          = 7
+BOOTSTRAP_N             = 1000
+RETRAIN_HOUR            = 2
+
+# ── WEBSOCKET ─────────────────────────────────────────────────────────────────
+WS_HOST = '0.0.0.0'
+WS_PORT = 8000
+
+# ── ACQUISITION ───────────────────────────────────────────────────────────────
+ACQUISITION_HZ = 1   # readings per second
+
+# ── AMDEC (Analyse des Modes de Défaillance) ──────────────────────────────────
+# Format: criticite = G × O × D (Gravite x Occurrence x Detection)
+#
+# NIVEAU_BAS_VANNE_PANNE:  G=9 (arrêt production), O=4, D=5
+# HEATER_RESISTANCE_HS:    G=8 (perte chauffage), O=4, D=5
+# CALCAIRE_TUYAUX:         G=8 (perte debit >20%), O=4, D=3
+# HEATER_POMPE_HS:         G=9 (arrêt production), O=2, D=5
+# BULLES_AIR:              G=6 (degradation 5-10%), O=5, D=3
+# FUITE_CIRCUIT:           G=6 (perte fluide), O=5, D=2
+# ISOLATION_DEGRADEE:      G=5 (perte rendement 3%), O=3, D=3
+
+AMDEC_FAILURE_MODES = {
+    'NIVEAU_BAS_VANNE_PANNE': {
+        'criticite': 180,  # G=9, O=4, D=5
+        'priorite': 1,
+        'actions': [
+            "Vérifier niveau réservoir visuellement",
+            "Tester vanne appoint manuellement",
+            "Vérifier si vanne s'ouvre quand niveau descend",
+            "Vérifier commande électrique vanne (automate)",
+            "Si vanne bloquée : Débloquer ou remplacer",
+            "Remplir réservoir manuellement si nécessaire"
+        ]
+    },
+    'HEATER_RESISTANCE_HS': {
+        'criticite': 160,  # G=8, O=4, D=5
+        'priorite': 2,
+        'actions': [
+            "Mesurer T_heater (doit être 45°C ± 1°C)",
+            "Si T_heater < 44°C : résistance probablement HS",
+            "Vérifier alimentation électrique résistance",
+            "Tester continuité résistance (multimètre)",
+            "Vérifier régulation température PID",
+            "Remplacement résistance urgent"
+        ]
+    },
+    'CALCAIRE_TUYAUX': {
+        'criticite': 96,  # G=8, O=4, D=3
+        'priorite': 3,
+        'actions': [
+            "Mesurer débit d'eau actuel avec débitmètre",
+            "Calculer épaisseur calcaire (modèle Grey-Box)",
+            "Si épaisseur > 1.5mm : Planifier détartrage chimique sous 7 jours",
+            "Surveiller évolution débit toutes les 4h"
+        ]
+    },
+    'HEATER_POMPE_HS': {
+        'criticite': 90,  # G=9, O=2, D=5
+        'priorite': 4,
+        'actions': [
+            "Vérifier débit pompe heater (nominal: 16.5 L/min)",
+            "Écouter bruits anormaux/vibrations pompe",
+            "Vérifier alimentation électrique pompe",
+            "Inspecter roue pompe (usure, blocage, cavitation)",
+            "Si pompe HS : Arrêt production, remplacement urgent"
+        ]
+    },
+    'BULLES_AIR': {
+        'criticite': 90,  # G=6, O=5, D=3
+        'priorite': 5,
+        'actions': [
+            "Purger circuit hydraulique immédiatement",
+            "Vérifier niveau réservoir (doit être > 50%)",
+            "Inspecter joints pompe (entrées air possibles)",
+            "Contrôler vannes d'admission",
+            "Surveiller stabilité température 30 min post-purge"
+        ]
+    },
+    'FUITE_CIRCUIT': {
+        'criticite': 60,  # G=6, O=5, D=2
+        'priorite': 6,
+        'actions': [
+            "Inspecter visuellement circuit complet",
+            "Rechercher fuites (joints, raccords, tuyaux)",
+            "Mesurer pression circuit si possible",
+            "Réparer fuite identifiée",
+            "Tester étanchéité après réparation"
+        ]
+    },
+    'ISOLATION_DEGRADEE': {
+        'criticite': 45,  # G=5, O=3, D=3
+        'priorite': 7,
+        'actions': [
+            "Inspecter isolation moule visuellement"
+        ]
+    }
+}
+
+# Mapping des causes ML vers modes de défaillance AMDEC
+AMDEC_CAUSE_MAPPING = {
+    'POMPE_DEFAILLANTE': ['HEATER_POMPE_HS', 'NIVEAU_BAS_VANNE_PANNE', 'BULLES_AIR'],
+    'BULLES_AIR': ['BULLES_AIR', 'NIVEAU_BAS_VANNE_PANNE'],
+    'NIVEAU_BAS': ['NIVEAU_BAS_VANNE_PANNE', 'FUITE_CIRCUIT'],
+    'CALCAIRE': ['CALCAIRE_TUYAUX'],
+    'NORMAL': [],
+    'ERREUR': ['HEATER_POMPE_HS', 'HEATER_RESISTANCE_HS']
+}
+
+# ── N8N AUTOMATION ────────────────────────────────────────────────────────────
+N8N_WEBHOOK_ALERT = 'http://localhost:5678/webhook/alerte'

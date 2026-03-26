@@ -94,7 +94,7 @@ Les modes de défaillance sont priorisés selon l'analyse AMDEC (Gravité × Occ
 | FUITE_CIRCUIT  | 6 | 60 |
 | ISOLATION_DEGRADEE | 7 | 45 |
 
-##Installation et déploiement 
+## Installation et déploiement 
 **Stack Backend**
 
 | Technologie | Rôle |
@@ -108,7 +108,7 @@ Les modes de défaillance sont priorisés selon l'analyse AMDEC (Gravité × Occ
 | Pydantic | Validation des données |
 | python-dotenv | Variables d'environnement |
 
-** Stack Frontend**
+**Stack Frontend**
 
 | Technologie | Rôle |
 |-------------|------|
@@ -119,3 +119,18 @@ Les modes de défaillance sont priorisés selon l'analyse AMDEC (Gravité × Occ
 | WebSocket | Communication temps réel |
 | React Router | Navigation |
 
+- Backend
+  cd backend
+  
+python -m venv venv
+
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+python main.py
+
+- Frontend
+  cd frontend
+  npm install
+  npm run dev

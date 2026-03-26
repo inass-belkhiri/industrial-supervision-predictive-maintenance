@@ -120,7 +120,8 @@ Les modes de défaillance sont priorisés selon l'analyse AMDEC (Gravité × Occ
 | React Router | Navigation |
 
 - Backend
-  cd backend
+
+cd backend
   
 python -m venv venv
 
@@ -131,6 +132,21 @@ pip install -r requirements.txt
 python main.py
 
 - Frontend
+  
   cd frontend
+  
   npm install
+  
   npm run dev
+  
+- n8n via PM2
+
+  - Installer n8n globalement
+npm install -g n8n
+
+- Lancer avec PM2
+pm2 start n8n --name "n8n-workflows"
+pm2 save
+pm2 startup
+
+

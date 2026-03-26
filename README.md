@@ -72,3 +72,13 @@ Cela permet de prédire l'encrassement sans capteurs dédiés, réduisant ainsi 
 
 ## Analyse AMDEC et Classes de Défaillance
 Les modes de défaillance sont priorisés selon l'analyse AMDEC (Gravité × Occurrence × Détection). Le modèle Random Forest est entraîné à reconnaître les 7 classes suivantes :
+
+| Défaillances | Priorité | Criticité |
+|:-------------|:--------|--------: |
+| NIVEAU_BAS_VANNE_PANNE | 1 | 180 |
+| HEATER_RESISTANCE_HS | 2 | 160 |
+| CALCAIRE_TUYAUX | 3 | 96 |
+| HEATER_POMPE_HS | 4 | 90 |
+| BULLES_AIR | 5 | 90 |
+| FUITE_CIRCUIT  | 6 | 60 |
+| ISOLATION_DEGRADEE | 7 | 45 |

@@ -172,7 +172,8 @@ echo "INFLUXDB_TOKEN=votre-token" >> backend/.env
 # Frontend
 echo "VITE_API_URL=http://localhost:8000" >> frontend/.env
 ```
-## 📁 Structure du Projet## 
+## 📁 Structure du Projet
 
 <details>
 <summary><b>📂 Cliquez pour voir la structure complète du projet</b></summary>
+</details>

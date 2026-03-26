@@ -94,3 +94,28 @@ Les modes de défaillance sont priorisés selon l'analyse AMDEC (Gravité × Occ
 | FUITE_CIRCUIT  | 6 | 60 |
 | ISOLATION_DEGRADEE | 7 | 45 |
 
+##Installation et déploiement 
+**Stack Backend**
+
+| Technologie | Rôle |
+|-------------|------|
+| FastAPI | API REST + WebSocket |
+| Uvicorn | Serveur ASGI |
+| PyModbus | Communication Modbus RTU |
+| InfluxDB Client | Base de données temps-réel |
+| scikit-learn | ML (Isolation Forest, Random Forest, Ridge) |
+| Pandas / NumPy | Analyse de données |
+| Pydantic | Validation des données |
+| python-dotenv | Variables d'environnement |
+
+** Stack Frontend**
+
+| Technologie | Rôle |
+|-------------|------|
+| React 18 | Framework UI |
+| Vite | Build tool |
+| TailwindCSS | Styles CSS |
+| Recharts | Graphiques |
+| WebSocket | Communication temps réel |
+| React Router | Navigation |
+

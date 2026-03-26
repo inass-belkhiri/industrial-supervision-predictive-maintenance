@@ -228,7 +228,7 @@ echo "VITE_API_URL=http://localhost:8000" >> frontend/.env
 └── README.md
 ```          
 </details>
-## API WebSocket
+##API WebSocket
 
 Le backend expose une API WebSocket pour le temps réel :
 
@@ -275,4 +275,11 @@ pytest
 
 - Codes de réponse et gestion des erreurs
 
+## Auteurs
+Inass BELKHIRI
+Étudiante Ingénieur - ENSA Kénitra
+Génie Électrique - Systèmes Embarqués
 
+---
+
+*Projet réalisé dans le cadre du PFE 2025-2026 chez Yazaki Morocco*

@@ -277,8 +277,14 @@ pytest
 
 ## Auteurs
 Inass BELKHIRI
+
 Étudiante Ingénieur - ENSA Kénitra
+
 Génie Électrique - Systèmes Embarqués
+
+- LinkdIn: www.linkedin.com/in/inass-belkhiri
+
+
 
 ---
 

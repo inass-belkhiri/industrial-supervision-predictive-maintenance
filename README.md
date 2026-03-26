@@ -119,40 +119,28 @@ Les modes de défaillance sont priorisés selon l'analyse AMDEC (Gravité × Occ
 | WebSocket | Communication temps réel |
 | React Router | Navigation |
 
-- Backend
-
+```bash
+#Backend
 cd backend
-  
 python -m venv venv
-
 source venv/bin/activate
-
 pip install -r requirements.txt
-
 python main.py
 
-- Frontend
-  
+#Frontend
   cd frontend
-  
   npm install
-  
   npm run dev
   
-- n8n via PM2
+#n8n via PM2
 
-  - Installer n8n globalement
-    
-    npm install -g n8n
-
-  - Lancer avec PM2
-    
-    pm2 start n8n --name "n8n-workflows"
-    
-    pm2 save
-    
-    pm2 startup
-
+ Installer n8n globalement
+ npm install -g n8n
+ Lancer avec PM2
+ pm2 start n8n --name "n8n-workflows"
+ pm2 save
+ pm2 startup
+```
 
 ## Variables d'Environnement
 
@@ -184,3 +172,4 @@ echo "INFLUXDB_TOKEN=votre-token" >> backend/.env
 
 # Frontend
 echo "VITE_API_URL=http://localhost:8000" >> frontend/.env
+```

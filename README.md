@@ -176,6 +176,8 @@ echo "VITE_API_URL=http://localhost:8000" >> frontend/.env
 
 <details>
 <summary><b>📂 Cliquez pour voir la structure complète du projet</b></summary>
+ 
+ ```
  supervision_thermique/
 ├── backend/
 │ ├── config.py.example
@@ -223,5 +225,5 @@ echo "VITE_API_URL=http://localhost:8000" >> frontend/.env
 ├── .gitignore
 ├── setup_rpi.sh
 └── README.md
-
+```          
 </details>

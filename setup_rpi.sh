@@ -16,7 +16,7 @@ INFLUX_USERNAME="admin"
 INFLUX_PASSWORD="monitorTEMP26"
 INFLUX_ORG="temperature-monitoring"
 INFLUX_BUCKET="sensors"
-PROJECT_DIR="/home/pi/supervision_thermique"
+PROJECT_DIR="/home/pi/industrial-supervision-predictive-maintenance"
 
 echo ""
 echo "============================================================"

@@ -16,7 +16,7 @@ INFLUX_USERNAME="admin"
 INFLUX_PASSWORD="monitorTEMP26"
 INFLUX_ORG="temperature-monitoring"
 INFLUX_BUCKET="sensors"
-PROJECT_DIR="/home/pi/supervision_thermique"
+PROJECT_DIR="/home/pi/industrial-supervision-predictive-maintenance"
 
 echo ""
 echo "============================================================"
@@ -385,7 +385,7 @@ if ! echo "$CRON_CONTENT" | grep -q "influx backup"; then
 0 3 * * * find /home/pi/backups -name 'influx-*' -mtime +30 -exec rm -rf {} \; 2>/dev/null
 
 # Config + modeles ML : tous les dimanches a 4h
-0 4 * * 0 tar -czf /home/pi/backups/config-$(date +\%Y\%m\%d).tar.gz /home/pi/supervision_thermique/backend/config.py /home/pi/supervision_thermique/backend/models/ 2>/dev/null
+0 4 * * 0 tar -czf /home/pi/backups/config-$(date +\%Y\%m\%d).tar.gz /home/pi/industrial-supervision-predictive-maintenance/backend/config.py /home/pi/industrial-supervision-predictive-maintenance/backend/models/ 2>/dev/null
 
 CRON
 ) | crontab -
@@ -396,13 +396,55 @@ fi
 
 
 # =============================================================================
-# PHASE 10 -- Verification finale
+# PHASE 10 -- Installation n8n (Docker)
 # =============================================================================
-step "PHASE 10 -- Verification"
+step "PHASE 10 -- Installation n8n avec Docker"
+
+# Verifier si Docker est installe, sinon l'installer
+if ! command -v docker &> /dev/null; then
+  info "Installation de Docker..."
+  curl -fsSL https://get.docker.com -o get-docker.sh
+  sudo sh get-docker.sh
+  sudo usermod -aG docker pi
+  rm -f get-docker.sh
+  ok "Docker installe"
+else
+  ok "Docker deja installe : $(docker --version)"
+fi
+
+# Creer le repertoire pour les donnees persistantes de n8n
+mkdir -p ${PROJECT_DIR}/n8n_data
+sudo chown -R 1000:1000 ${PROJECT_DIR}/n8n_data
+
+# Lancer le conteneur n8n
+info "Lancement du conteneur n8n..."
+docker stop n8n 2>/dev/null || true
+docker rm n8n 2>/dev/null || true
+
+docker run -d \
+  --name n8n \
+  --restart always \
+  -p 5678:5678 \
+  -v ${PROJECT_DIR}/n8n_data:/home/node/.n8n \
+  -e N8N_BASIC_AUTH_ACTIVE=true \
+  -e N8N_BASIC_AUTH_USER="admin" \
+  -e N8N_BASIC_AUTH_PASSWORD="n8n12345" \
+  -e TZ="Africa/Casablanca" \
+  n8nio/n8n:latest
+
+ok "n8n demarre sur http://localhost:5678"
+info "Credentials n8n : admin / n8n12345"
+info "Changer le mot de passe dans les variables d'environnement si besoin"
+
+
+# =============================================================================
+# PHASE 11 -- Verification finale
+# =============================================================================
+step "PHASE 11 -- Verification"
 
 echo ""
 echo "Services :"
-for svc in influxdb supervision-backend supervision-frontend; do
+for svc in influxdb supervision-backend supervision-frontend n8n; do
   if systemctl is-active --quiet "$svc"; then
     ok "$svc est actif"
   else
@@ -431,4 +473,11 @@ if curl -s --max-time 3 http://localhost:5173 > /dev/null 2>&1; then
   ok "Frontend accessible sur http://localhost:5173"
 else
   warn "Frontend non accessible encore -- attendre 10 secondes et reessayer"
+fi
+
+# Verifier si le conteneur n8n tourne
+if docker ps --filter "name=n8n" --filter "status=running" | grep -q n8n; then
+  ok "n8n actif sur http://localhost:5678"
+else
+  warn "n8n n'est pas encore demarre -- verifier : docker logs n8n"
 fi

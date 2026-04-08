@@ -78,7 +78,7 @@ RETRAIN_HOUR            = 2
 
 # ── WEBSOCKET ─────────────────────────────────────────────────────────────────
 WS_HOST = '0.0.0.0'
-WS_PORT = 8000
+WS_PORT = 8001
 
 # ── ACQUISITION ───────────────────────────────────────────────────────────────
 ACQUISITION_HZ = 1   # readings per second

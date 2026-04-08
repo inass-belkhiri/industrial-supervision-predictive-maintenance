@@ -249,6 +249,7 @@ async def _cycle():
 
 # ── Broadcast ─────────────────────────────────────────────────────────────────
 async def _broadcast_all():
+    global ws_clients
     payload = json.dumps({
         'sensors':     latest_sensors,
         'diagnostic':  latest_diagnostic,

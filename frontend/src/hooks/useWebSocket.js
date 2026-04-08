@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const WS_URL = 'ws://localhost:8000/ws'
+const WS_URL = 'ws://localhost:8001/ws'
 
 export function useWebSocket() {
   const [data, setData]           = useState(null)

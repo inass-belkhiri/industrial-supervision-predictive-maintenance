@@ -133,13 +133,27 @@ python main.py
   npm install
   npm run dev
   
-#n8n via PM2
-# Installer n8n globalement
- npm install -g n8n
-# Lancer avec PM2
- pm2 start n8n --name "n8n-workflows"
- pm2 save
- pm2 startup
+#n8n via Docker
+  # Install Docker if not present
+  curl -fsSL https://get.docker.com -o get-docker.sh
+  sudo sh get-docker.sh
+  sudo usermod -aG docker pi
+
+  # Create data directory
+  mkdir -p ${PROJECT_DIR}/n8n_data
+  sudo chown -R 1000:1000 ${PROJECT_DIR}/n8n_data
+
+  # Run n8n container
+  docker run -d \
+    --name n8n \
+    --restart always \
+    -p 5678:5678 \
+    -v ${PROJECT_DIR}/n8n_data:/home/node/.n8n \
+    -e N8N_BASIC_AUTH_ACTIVE=true \
+    -e N8N_BASIC_AUTH_USER="admin" \
+    -e N8N_BASIC_AUTH_PASSWORD="n8n12345" \
+    -e TZ="Africa/Casablanca" \
+    n8nio/n8n:latest
 ```
 
 ## Variables d'Environnement

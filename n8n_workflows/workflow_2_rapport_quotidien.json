@@ -9,79 +9,148 @@
       },
       "name": "Cron 23h00",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "position": [250, 300]
+      "position": [250, 300],
+      "typeVersion": 1.2
     },
     {
       "parameters": {
-        "query": "SELECT mean(temperature) as temp_mean, min(temperature) as temp_min, max(temperature) as temp_max FROM temperature WHERE time > now() - 1d GROUP BY mold_id",
-        "database": "sensors"
+        "operation": "fluxQuery",
+        "query": "from(bucket: \"sensors\")\n  |> range(start: -1d)\n  |> filter(fn: (r) => r._measurement == \"temperature\")\n  |> filter(fn: (r) => r._field == \"temperature\")\n  |> group(columns: [\"mold_id\", \"group_id\"])\n  |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)\n  |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> keep(columns: [\"_time\", \"mold_id\", \"group_id\", \"position\", \"_value\"])\n  |> rename(columns: {_value: \"temp_mean\"})"
       },
       "name": "InfluxDB Températures",
       "type": "n8n-nodes-base.influxDb",
       "position": [450, 200],
-      "credentials": {"influxDb": "InfluxDB Local"}
+      "typeVersion": 2,
+      "credentials": {
+        "influxDb": {
+          "id": "1",
+          "name": "InfluxDB Yazaki"
+        }
+      }
     },
     {
       "parameters": {
-        "query": "SELECT * FROM alerts WHERE time > now() - 1d ORDER BY time DESC",
-        "database": "sensors"
+        "operation": "fluxQuery",
+        "query": "from(bucket: \"sensors\")\n  |> range(start: -1d)\n  |> filter(fn: (r) => r._measurement == \"temperature\")\n  |> filter(fn: (r) => r._field == \"temperature\")\n  |> filter(fn: (r) => r.status == \"ALERTE\" or r.status == \"ERREUR\")\n  |> aggregateWindow(every: 1h, fn: last, createEmpty: false)\n  |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")"
       },
       "name": "InfluxDB Alertes",
       "type": "n8n-nodes-base.influxDb",
       "position": [450, 400],
-      "credentials": {"influxDb": "InfluxDB Local"}
+      "typeVersion": 2,
+      "credentials": {
+        "influxDb": {
+          "id": "1",
+          "name": "InfluxDB Yazaki"
+        }
+      }
     },
     {
       "parameters": {
-        "operation": "create",
+        "operation": "aggregateItems",
+        "aggregate": "combine",
+        "options": {}
+      },
+      "name": "Merge Données",
+      "type": "n8n-nodes-base.aggregate",
+      "position": [600, 300],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "toXLSX",
         "fileFormat": "xlsx",
-        "fileName": "rapport_yazaki_{{$now.format('YYYY-MM-DD')}}",
-        "sheets": [
-          {"name": "Températures", "columns": "={{$node['InfluxDB Températures'].json}}"},
-          {"name": "Alertes", "columns": "={{$node['InfluxDB Alertes'].json}}"}
-        ]
+        "sheets": {
+          "values": [
+            {
+              "name": "Températures (moyennes horaires)",
+              "columns": {
+                "mappingMode": "autoMapInputData",
+                "value": {}
+              }
+            },
+            {
+              "name": "Alertes",
+              "columns": {
+                "mappingMode": "autoMapInputData",
+                "value": {}
+              }
+            }
+          ]
+        },
+        "options": {
+          "fileName": "={{'rapport_yazaki_' + $now.format('YYYY-MM-DD')}}"
+        }
       },
       "name": "Générer Excel",
       "type": "n8n-nodes-base.spreadsheetFile",
-      "position": [650, 300]
+      "position": [750, 300],
+      "typeVersion": 2
     },
     {
       "parameters": {
-        "fromEmail": "monitoring@yazaki.ma",
-        "toEmail": "chef.equipe@yazaki.ma",
-        "subject": "📊 Rapport Quotidien - {{$now.format('DD/MM/YYYY')}}",
-        "emailFormat": "html",
-        "message": "<h2>Rapport Quotidien Supervision Thermique</h2><p>Veuillez trouver ci-joint le rapport Excel.</p>",
-        "attachments": "data:@={{$node['Générer Excel'].json.data}}"
-      },
-      "name": "Email + Excel",
-      "type": "n8n-nodes-base.emailSend",
-      "position": [850, 300],
-      "credentials": {"smtp": "SMTP Yazaki"}
-    },
-    {
-      "parameters": {
-        "chatId": "={{$env.TELEGRAM_CHEF_ID}}",
-        "text": "📊 Rapport quotidien {{$now.format('DD/MM/YYYY')}} envoyé par email"
+        "chatId": "={{ $env.TELEGRAM_CHEF_ID }}",
+        "text": "={{'📊 Rapport Quotidien — Supervision Thermique\\n\\nDate : ' + $now.format('DD/MM/YYYY') + '\\n\\n✅ Données envoyées au chef d\\'équipe par email.'}}",
+        "additionalFields": {}
       },
       "name": "Telegram Notification",
       "type": "n8n-nodes-base.telegram",
-      "position": [850, 400],
-      "credentials": {"telegramApi": "Telegram Yazaki Bot"}
+      "position": [950, 400],
+      "typeVersion": 1.2,
+      "credentials": {
+        "telegramApi": {
+          "id": "2",
+          "name": "Telegram Yazaki Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_EMAIL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"subject\": \"📊 Rapport Quotidien - \" + $now.format(\"DD/MM/YYYY\"), \"to\": \"chef.equipe@yazaki.ma\", \"body\": \"<h2>Rapport Quotidien Supervision Thermique</h2><p>Date : \" + $now.format(\"DD/MM/YYYY\") + \"</p><p>12 capteurs — 4 heaters — Ligne de production mousse</p><p>Veuillez trouver ci-joint le rapport Excel détaillé.</p>\", \"attachment\": $binary } }}"
+      },
+      "name": "Email Rapport",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [950, 300],
+      "typeVersion": 4.2
     }
   ],
   "connections": {
     "Cron 23h00": {
-      "main": [[
-        {"node": "InfluxDB Températures", "type": "main", "index": 0},
-        {"node": "InfluxDB Alertes", "type": "main", "index": 0}
-      ]]
+      "main": [
+        [
+          { "node": "InfluxDB Températures", "type": "main", "index": 0 },
+          { "node": "InfluxDB Alertes", "type": "main", "index": 0 }
+        ]
+      ]
     },
-    "InfluxDB Températures": {"main": [[{"node": "Générer Excel", "type": "main", "index": 0}]]},
-    "InfluxDB Alertes": {"main": [[{"node": "Générer Excel", "type": "main", "index": 0}]]},
-    "Générer Excel": {"main": [[
-      {"node": "Email + Excel", "type": "main", "index": 0},
-      {"node": "Telegram Notification", "type": "main", "index": 0}
-    ]]}
+    "InfluxDB Températures": {
+      "main": [[{ "node": "Merge Données", "type": "main", "index": 0 }]]
+    },
+    "InfluxDB Alertes": {
+      "main": [[{ "node": "Merge Données", "type": "main", "index": 1 }]]
+    },
+    "Merge Données": {
+      "main": [[{ "node": "Générer Excel", "type": "main", "index": 0 }]]
+    },
+    "Générer Excel": {
+      "main": [
+        [
+          { "node": "Email Rapport", "type": "main", "index": 0 },
+          { "node": "Telegram Notification", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
   }
 }

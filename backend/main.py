@@ -32,6 +32,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import config
 import modbus_manager as modbus
 import influxdb_manager as influx
+from flow_sensor     import FlowSensor
 from grey_box        import GreyBoxModel
 from anomaly_detector import AnomalyDetector
 from cause_classifier import CauseClassifier
@@ -60,19 +61,32 @@ ridge_models: Dict[Tuple, RidgePredictor] = {}
 calibration_temps: Dict[Tuple, float]     = {}
 diagnostic_history: List[Dict]            = []
 
+flow_sensor_obj = None
+
 
 # ── Startup / Shutdown ────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global flow_sensor_obj
     log.info("Starting Supervision Thermique backend")
     influx.init_influxdb()
     await modbus.init_modbus()
+    
+    if config.FLOW_SENSOR_ENABLED:
+        flow_sensor_obj = FlowSensor(pin=config.FLOW_SENSOR_GPIO_PIN)
+        log.info(f"Flow sensor (YF-S201) initialized on GPIO {config.FLOW_SENSOR_GPIO_PIN}")
+    else:
+        flow_sensor_obj = None
+        log.info("Flow sensor disabled, using default flow rate")
+
     _load_calibrations()
     asyncio.create_task(monitoring_loop())
     asyncio.create_task(daily_retrain_loop())
     log.info("Backend ready — port %d", config.WS_PORT)
     yield
     await modbus.close_modbus()
+    if flow_sensor_obj:
+        flow_sensor_obj.close()
     influx.close_influxdb()
     log.info("Backend shutdown")
 
@@ -107,10 +121,14 @@ async def monitoring_loop():
 
 
 async def _cycle():
-    global latest_sensors, latest_diagnostic
+    global latest_sensors, latest_diagnostic, flow_sensor_obj
 
     readings = await modbus.read_all_sensors(calibration_temps)
-    flow_lpm = config.FLOW_DEFAULT_LPM
+    
+    if config.FLOW_SENSOR_ENABLED and flow_sensor_obj:
+        flow_lpm = flow_sensor_obj.read_lpm()
+    else:
+        flow_lpm = config.FLOW_DEFAULT_LPM
 
     # Update rolling histories
     for r in readings:

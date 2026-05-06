@@ -37,11 +37,13 @@ LED_GPIO_PIN   = 18
 LED_COUNT      = 30
 LED_BRIGHTNESS = 128
 
-# ── FLOW SENSOR ──────────────────────────────────────
+# ── FLOW SENSOR (YF-S201 Hall Effect) ────────────────
+# Wiring: Red=5V, Black=GND, Yellow=Signal (GPIO)
+# Formula: Flow Rate (L/min) = Frequency (Hz) / 7.5
 FLOW_SENSOR_ENABLED  = False
 FLOW_DEFAULT_LPM     = 16.5
-FLOW_SENSOR_SLAVE    = 13
-FLOW_SENSOR_REGISTER = 0
+FLOW_SENSOR_GPIO_PIN = 17
+YF_S201_K_FACTOR     = 7.5
 
 # ── GREY-BOX PHYSICAL PARAMETERS ─────────────────────
 PIPE_DIAMETER   = 0.013

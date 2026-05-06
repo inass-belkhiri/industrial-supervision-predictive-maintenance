@@ -6,4 +6,5 @@ python-telegram-bot==20.7
 rpi-ws281x==5.0.0
 scikit-learn==1.4.0
 numpy==1.26.4
+gpiozero==2.0
 

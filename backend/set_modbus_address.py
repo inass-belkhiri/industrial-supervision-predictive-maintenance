@@ -1,157 +1,145 @@
 #!/usr/bin/env python3
 """
-set_modbus_address.py
-Configure l'adresse MODBUS d'un capteur PT100.
-Registre d'adresse : 0x0002 (découvert par scan des registres)
-
-Usage:
-    python3 set_modbus_address.py --current 1 --new 2
-    python3 set_modbus_address.py --current 1 --new 5
-    ... jusqu'à 12
 """
 
 import argparse
 import asyncio
 import sys
 from pymodbus.client import AsyncModbusSerialClient
+from pymodbus.exceptions import ModbusException
 
-PORT             = '/dev/ttyUSB0'
-BAUD             = 9600
-TIMEOUT          = 2.0
-ADDRESS_REGISTER = 0x0002
-MAX_RETRIES      = 3
-
+PORT = '/dev/ttyUSB0'
+BAUD = 9600
+TIMEOUT = 2.0
+ADDR_REG = 0x0002
+MAX_RETRIES = 3
+REBOOT_WAIT = 5   # secondes après écriture
 
 async def make_client():
     client = AsyncModbusSerialClient(
         port=PORT, baudrate=BAUD,
         parity='N', stopbits=1, bytesize=8,
-        timeout=TIMEOUT,
+        timeout=TIMEOUT
     )
-    ok = await client.connect()
-    return client if ok else None
+    if await client.connect():
+        return client
+    return None
 
-
-async def read_temp(addr: int):
-    """Tente de lire la température à une adresse. Retourne None si échec."""
+async def read_temp_and_addr(slave_id):
+    """Retourne (température, adresse_lue) ou (None, None) si échec."""
     client = await make_client()
-    if client is None:
-        return None
+    if not client:
+        return None, None
     try:
-        r = await client.read_holding_registers(0, count=1, slave=addr)
-        if not r.isError():
-            return r.registers[0] * 0.1
-        return None
-    except Exception:
-        return None
+        # Lecture registre 0 = température, registre 2 = adresse (optionnel)
+        rr = await client.read_holding_registers(0, count=3, slave=slave_id)
+        if rr.isError():
+            return None, None
+        temp = rr.registers[0] * 0.1 if len(rr.registers) > 0 else None
+        addr_read = rr.registers[2] if len(rr.registers) > 2 else None
+        return temp, addr_read
+    except ModbusException:
+        return None, None
     finally:
         client.close()
 
-
-async def write_address(current_addr: int, new_addr: int):
-    """Envoie la commande d'écriture. L'exception de redémarrage est ignorée."""
+async def write_address(current, new):
+    """Écrit la nouvelle adresse et attend le redémarrage. Retourne True si l'écriture semble réussie."""
     client = await make_client()
-    if client is None:
-        return
+    if not client:
+        return False
     try:
-        await client.write_register(ADDRESS_REGISTER, new_addr, slave=current_addr)
-    except Exception:
-        # Exception attendue : le module redémarre avec la nouvelle adresse
-        # avant que pymodbus reçoive une réponse valide. L'écriture a bien eu lieu.
-        pass
+        # On écrit avec un timeout réduit car la réponse sera interrompue
+        await asyncio.wait_for(
+            client.write_register(ADDR_REG, new, slave=current),
+            timeout=1.0
+        )
+        # Si on arrive ici, c'est que l'écriture a été confirmée (rare)
+        return True
+    except (asyncio.TimeoutError, ModbusException, Exception):
+        # La plupart du temps, on aura une exception car le capteur redémarre.
+        # On considère que l'écriture a quand même eu lieu.
+        return True
     finally:
         client.close()
 
+async def set_address(current, new):
+    print(f"\n=== Changement d'adresse : {current} → {new} ===")
 
-async def set_address(current_addr: int, new_addr: int):
-
-    # ── Étape 1 : Vérifier que le capteur est présent ───────────────────────
-    print(f"\nRecherche du capteur a l'adresse {current_addr}...")
-    temp = await read_temp(current_addr)
-
-    if temp is None:
-        # Peut-être qu'une tentative précédente a déjà écrit new_addr
-        print(f"  Aucun capteur a {current_addr} — verification a {new_addr}...")
-        temp_new = await read_temp(new_addr)
+    # 1. Vérifier présence à l'ancienne adresse
+    temp_old, _ = await read_temp_and_addr(current)
+    if temp_old is None:
+        # Peut-être déjà changé ?
+        temp_new, _ = await read_temp_and_addr(new)
         if temp_new is not None:
-            print(f"  [INFO] Capteur deja a l'adresse {new_addr} : {temp_new:.1f} deg C")
-            print(f"  -> Adresse correcte, rien a faire.")
-            _print_next(new_addr)
-            return
-        else:
-            print(f"[ERREUR] Capteur introuvable aux adresses {current_addr} et {new_addr}")
-            print(f"  -> Verifier le cablage A+/B-")
-            print(f"  -> Ou scanner : python3 modbus_scanner.py --stop 247")
-            sys.exit(1)
+            print(f"[INFO] Le capteur répond déjà à {new} : {temp_new:.1f}°C. Rien à faire.")
+            return True
+        print(f"[ERREUR] Aucun capteur trouvé à {current} ni à {new}.")
+        print("  → Vérifiez le câblage ou lancez un scanner.")
+        return False
 
-    print(f"  Capteur detecte : {temp:.1f} deg C")
+    print(f"Capteur trouvé à {current} – température {temp_old:.1f}°C.")
 
-    # ── Étape 2 : Boucle d'écriture avec vérification ───────────────────────
     for attempt in range(1, MAX_RETRIES + 1):
-        print(f"\nChangement d'adresse : {current_addr} -> {new_addr}  (tentative {attempt}/{MAX_RETRIES})")
-
-        await write_address(current_addr, new_addr)
-        print(f"  Commande envoyee. Attente redemarrage (4s)...")
-        await asyncio.sleep(4)
-
-        # Vérifier la nouvelle adresse
-        temp_new = await read_temp(new_addr)
-        if temp_new is not None:
-            print(f"\n[OK] Capteur repond a l'adresse {new_addr} : {temp_new:.1f} deg C")
-            _print_next(new_addr)
-            return
-
-        await asyncio.sleep(1)
-
-        # Vérifier si l'ancienne adresse répond encore (write raté)
-        temp_old = await read_temp(current_addr)
-        if temp_old is not None:
-            print(f"  [WARN] Write echoue — capteur encore a {current_addr} : {temp_old:.1f} deg C")
-            if attempt < MAX_RETRIES:
-                print(f"  Nouvelle tentative dans 2s...")
-                await asyncio.sleep(2)
+        print(f"\nTentative {attempt}/{MAX_RETRIES} : écriture de {new} dans registre {hex(ADDR_REG)}...")
+        success = await write_address(current, new)
+        if not success:
+            print("  Échec de l'envoi de la commande.")
             continue
 
-        # Ni l'une ni l'autre — module peut-être encore en redémarrage
-        print(f"  [WARN] Capteur non trouve aux adresses {current_addr} et {new_addr}. Attente 3s...")
-        await asyncio.sleep(3)
-        temp_new2 = await read_temp(new_addr)
-        if temp_new2 is not None:
-            print(f"\n[OK] Capteur repond a l'adresse {new_addr} : {temp_new2:.1f} deg C")
-            _print_next(new_addr)
-            return
+        print(f"  Attente {REBOOT_WAIT} secondes pour redémarrage...")
+        await asyncio.sleep(REBOOT_WAIT)
 
-    # ── Échec après MAX_RETRIES ──────────────────────────────────────────────
-    print(f"\n[ERREUR] Echec apres {MAX_RETRIES} tentatives.")
-    print(f"  -> Scanner pour trouver l'adresse reelle du capteur :")
-    print(f"  -> python3 modbus_scanner.py --stop 247")
-    sys.exit(1)
+        # Vérifier nouvelle adresse
+        temp_new, addr_read = await read_temp_and_addr(new)
+        if temp_new is not None:
+            # Vérifier que ce n'est pas un autre capteur (optionnel)
+            print(f"[OK] Capteur répond à {new} : {temp_new:.1f}°C.")
+            # Vérifier que l'ancienne adresse ne répond plus
+            old_still_alive, _ = await read_temp_and_addr(current)
+            if old_still_alive is None:
+                print(f"[OK] L'ancienne adresse {current} ne répond plus – changement réussi.")
+                return True
+            else:
+                print(f"[WARN] L'ancienne adresse {current} répond encore ({old_still_alive:.1f}°C) – conflit.")
+                # Peut-être deux capteurs branchés ?
+                return False
+        else:
+            print(f"  Aucune réponse à {new} après {REBOOT_WAIT}s.")
 
+        # Vérifier si l'ancienne adresse est toujours là
+        temp_old_again, _ = await read_temp_and_addr(current)
+        if temp_old_again is not None:
+            print(f"  L'ancienne adresse {current} répond toujours ({temp_old_again:.1f}°C). Nouvel essai...")
+            await asyncio.sleep(2)
+            continue
+        else:
+            # Ni ancienne ni nouvelle – capteur en train de redémarrer ? Attendre plus
+            print("  Aucune réponse ni à l'ancienne ni à la nouvelle adresse. Attente supplémentaire...")
+            await asyncio.sleep(3)
+            temp_new2, _ = await read_temp_and_addr(new)
+            if temp_new2 is not None:
+                print(f"[OK] Capteur répond à {new} après délai : {temp_new2:.1f}°C.")
+                return True
 
-def _print_next(new_addr: int):
-    print(f"\n  -> Debrancher ce capteur (A+ et B- uniquement)")
-    print(f"  -> Brancher le capteur suivant seul sur A+/B-")
-    if new_addr < 12:
-        print(f"  -> Commande : python3 set_modbus_address.py --current 1 --new {new_addr + 1}")
-    else:
-        print(f"  -> Tous les capteurs configures !")
-        print(f"  -> Rebrancher tous les A+ et B-")
-        print(f"  -> python3 modbus_scanner.py")
+    print(f"\n[ERREUR] Impossible de changer l'adresse après {MAX_RETRIES} tentatives.")
+    print("  → Suggestions :")
+    print("     1) Vérifiez que le capteur est seul sur le bus.")
+    print("     2) Augmentez REBOOT_WAIT (certains capteurs mettent plus de temps).")
+    print("     3) Utilisez le scanner pour trouver l'adresse actuelle :")
+    print("        python3 modbus_scanner.py --stop 247")
+    return False
 
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--current', type=int, required=True)
+    parser.add_argument('--new', type=int, required=True)
+    args = parser.parse_args()
+    if not (1 <= args.current <= 247 and 1 <= args.new <= 247):
+        print("Erreur : adresse hors plage 1-247")
+        sys.exit(1)
+    result = asyncio.run(set_address(args.current, args.new))
+    sys.exit(0 if result else 1)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--current', type=int, required=True,
-                        help='Adresse actuelle du capteur branche (1 par defaut usine)')
-    parser.add_argument('--new', type=int, required=True,
-                        help='Nouvelle adresse (2 a 12)')
-    args = parser.parse_args()
-
-    if not (1 <= args.current <= 247):
-        print("[ERREUR] --current doit etre entre 1 et 247")
-        sys.exit(1)
-    if not (1 <= args.new <= 247):
-        print("[ERREUR] --new doit etre entre 1 et 247")
-        sys.exit(1)
-
-    asyncio.run(set_address(args.current, args.new))
+    main()

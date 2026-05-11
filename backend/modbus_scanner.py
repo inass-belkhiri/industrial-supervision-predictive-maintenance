@@ -64,9 +64,15 @@ async def scan(port: str, baud: int, start_id: int, stop_id: int):
         print("\n--- SENSOR_MAP a coller dans config.py ---")
         print("SENSOR_MAP = {")
         positions = {1: 'gauche', 2: 'centre', 3: 'droite'}
+<<<<<<< HEAD
         for sid, raw, temp in found:
             gid = (sid - 1) // 3 + 1
             pos = (sid - 1) % 3 + 1
+=======
+        for idx, (sid, raw, temp) in enumerate(found, 1):
+            gid = (idx - 1) // 3 + 1
+            pos = (idx - 1) % 3 + 1
+>>>>>>> 97804dc2ee8ebad78ffa460ce498f55386b55014
             print(f"    ({gid}, {pos}): ({sid}, 0),  "
                   f"# Heater {gid} - {positions.get(pos,pos)} "
                   f"[slave {sid}, {temp:.1f}C detectee]")

@@ -56,11 +56,21 @@ async def _read_one(slave: int, register: int) -> Optional[float]:
     if _client is None:
         return None
     try:
-        result = await _client.read_holding_registers(register, count=1, slave=slave)
+        result = await asyncio.wait_for(
+            _client.read_holding_registers(register, count=1, slave=slave),
+            timeout=config.MODBUS_TIMEOUT,
+        )
         if result.isError():
             return None
         raw = result.registers[0]
         return raw * config.TEMP_SCALE_FACTOR
+    except asyncio.TimeoutError:
+        log.debug("MODBUS timeout slave=%d reg=%d", slave, register)
+        return None
+    except asyncio.InvalidStateError:
+        # pymodbus known bug: late response arrives after Future already settled
+        log.debug("MODBUS late response (InvalidStateError) slave=%d reg=%d", slave, register)
+        return None
     except (ModbusException, Exception) as exc:
         log.debug("MODBUS read error slave=%d: %s", slave, exc)
         return None
@@ -84,8 +94,9 @@ async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
 
     readings = []
     for (gid, mid), task in tasks.items():
-        temp = task.result() if not isinstance(task.result(), Exception) else None
-        pos  = config.POSITION_MAP.get(mid, 'unknown')
+        result = task.result()
+        temp   = result if not isinstance(result, Exception) else None
+        pos    = config.POSITION_MAP.get(mid, 'unknown')
 
         if temp is None:
             status    = 'ERREUR'

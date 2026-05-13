@@ -1,11 +1,15 @@
 # modbus_manager.py
 # Reads all 12 temperature sensors via MODBUS RTU over RS485.
-# Uses pymodbus with asyncio for non-blocking parallel reads.
+# Uses pymodbus with asyncio.  Reads are serialized with a Lock because
+# Modbus RTU is half-duplex: only one request/response exchange can be
+# in flight at a time on the RS485 bus.  Concurrent tasks caused
+# asyncio.InvalidStateError when a late response arrived after its
+# Future had already been cancelled by wait_for.
 # Returns a list of SensorReading dataclass instances.
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, List
 
@@ -29,12 +33,14 @@ class SensorReading:
     timestamp   : str
 
 
-_client: Optional[AsyncModbusSerialClient] = None
+_client  : Optional[AsyncModbusSerialClient] = None
+_bus_lock: Optional[asyncio.Lock]            = None   # one request at a time on RS485
 
 
 async def init_modbus() -> bool:
     """Open the MODBUS serial connection. Returns True on success."""
-    global _client
+    global _client, _bus_lock
+    _bus_lock = asyncio.Lock()
     _client = AsyncModbusSerialClient(
         port     = config.MODBUS_PORT,
         baudrate = config.MODBUS_BAUDRATE,
@@ -52,14 +58,21 @@ async def init_modbus() -> bool:
 
 
 async def _read_one(slave: int, register: int) -> Optional[float]:
-    """Read a single holding register and return the temperature in degrees C."""
-    if _client is None:
+    """
+    Read a single holding register and return the temperature in degrees C.
+
+    The Lock ensures only one Modbus request is on the RS485 bus at a
+    time, preventing the InvalidStateError that occurred when pymodbus
+    tried to resolve a Future that wait_for had already cancelled.
+    """
+    if _client is None or _bus_lock is None:
         return None
     try:
-        result = await asyncio.wait_for(
-            _client.read_holding_registers(register, count=1, slave=slave),
-            timeout=config.MODBUS_TIMEOUT,
-        )
+        async with _bus_lock:
+            result = await asyncio.wait_for(
+                _client.read_holding_registers(register, count=1, slave=slave),
+                timeout=config.MODBUS_TIMEOUT,
+            )
         if result.isError():
             return None
         raw = result.registers[0]
@@ -68,7 +81,7 @@ async def _read_one(slave: int, register: int) -> Optional[float]:
         log.debug("MODBUS timeout slave=%d reg=%d", slave, register)
         return None
     except asyncio.InvalidStateError:
-        # pymodbus known bug: late response arrives after Future already settled
+        # Safety net: pymodbus late-response race condition
         log.debug("MODBUS late response (InvalidStateError) slave=%d reg=%d", slave, register)
         return None
     except (ModbusException, Exception) as exc:
@@ -78,25 +91,24 @@ async def _read_one(slave: int, register: int) -> Optional[float]:
 
 async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
     """
-    Read all 12 sensors concurrently.
+    Read all 12 sensors sequentially (required by the RS485 half-duplex bus).
     calibration_temps: { mold_key: float } — T_mold_jour1 per mold.
     Returns a list of SensorReading, one per sensor.
     """
     now = datetime.now().isoformat(timespec='seconds')
 
-    # Build coroutines for all sensors
-    tasks = {}
-    for (gid, mid), (slave, reg) in config.SENSOR_MAP.items():
-        tasks[(gid, mid)] = asyncio.create_task(_read_one(slave, reg))
-
-    # Await all in parallel
-    await asyncio.gather(*tasks.values(), return_exceptions=True)
+    # Sequential reads: each _read_one acquires the lock internally.
+    # asyncio.gather is kept so the event loop stays free between lock
+    # acquisitions (other coroutines can run while we wait for the bus).
+    keys  = list(config.SENSOR_MAP.keys())
+    tasks = [asyncio.create_task(_read_one(slave, reg))
+             for (slave, reg) in config.SENSOR_MAP.values()]
+    temps = await asyncio.gather(*tasks, return_exceptions=True)
 
     readings = []
-    for (gid, mid), task in tasks.items():
-        result = task.result()
-        temp   = result if not isinstance(result, Exception) else None
-        pos    = config.POSITION_MAP.get(mid, 'unknown')
+    for (gid, mid), temp_or_exc in zip(keys, temps):
+        temp = temp_or_exc if not isinstance(temp_or_exc, Exception) else None
+        pos  = config.POSITION_MAP.get(mid, 'unknown')
 
         if temp is None:
             status    = 'ERREUR'

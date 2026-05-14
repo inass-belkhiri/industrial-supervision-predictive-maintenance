@@ -72,7 +72,7 @@ class GreyBoxModel:
 
         # Convert flow to m^3/s and split across all 12 molds
         flow_m3s    = (flow_lpm / 60.0) / 1000.0   # L/min -> m^3/s
-        flow_mold   = flow_m3s / config.N_MOLDS
+        flow_mold   = flow_m3s   # 3 moules en série → même débit
 
         delta_T_measured  = config.T_HEATER - T_mold
         delta_T_norm      = self.delta_T_normal.get(key, 1.5)   # default 1.5 if not calibrated

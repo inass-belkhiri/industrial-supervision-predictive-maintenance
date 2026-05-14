@@ -24,6 +24,8 @@ from datetime import datetime
 from collections import deque
 from typing import Dict, List, Set, Tuple
 
+import numpy as np
+
 import requests
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -61,23 +63,26 @@ ridge_models: Dict[Tuple, RidgePredictor] = {}
 calibration_temps: Dict[Tuple, float]     = {}
 diagnostic_history: List[Dict]            = []
 
-flow_sensor_obj = None
+flow_sensors: Dict[int, FlowSensor] = {}
 
 
 # ── Startup / Shutdown ────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global flow_sensor_obj
+    global flow_sensors
     log.info("Starting Supervision Thermique backend")
     influx.init_influxdb()
     await modbus.init_modbus()
-    
-    if config.FLOW_SENSOR_ENABLED:
-        flow_sensor_obj = FlowSensor(pin=config.FLOW_SENSOR_GPIO_PIN)
-        log.info(f"Flow sensor (YF-S201) initialized on GPIO {config.FLOW_SENSOR_GPIO_PIN}")
+
+    if config.FLOW_SENSOR_PINS:
+        flow_sensors = {
+            gid: FlowSensor(pin=pin)
+            for gid, pin in config.FLOW_SENSOR_PINS.items()
+        }
+        log.info("Flow sensors initialized: %s", flow_sensors)
     else:
-        flow_sensor_obj = None
-        log.info("Flow sensor disabled, using default flow rate")
+        flow_sensors = {}
+        log.info("No flow sensor pins configured, using default flow rate")
 
     _load_calibrations()
     asyncio.create_task(monitoring_loop())
@@ -85,8 +90,8 @@ async def lifespan(app: FastAPI):
     log.info("Backend ready — port %d", config.WS_PORT)
     yield
     await modbus.close_modbus()
-    if flow_sensor_obj:
-        flow_sensor_obj.close()
+    for sensor in flow_sensors.values():
+        sensor.close()
     influx.close_influxdb()
     log.info("Backend shutdown")
 
@@ -121,14 +126,15 @@ async def monitoring_loop():
 
 
 async def _cycle():
-    global latest_sensors, latest_diagnostic, flow_sensor_obj
+    global latest_sensors, latest_diagnostic
 
     readings = await modbus.read_all_sensors(calibration_temps)
-    
-    if config.FLOW_SENSOR_ENABLED and flow_sensor_obj:
-        flow_lpm = flow_sensor_obj.read_lpm()
-    else:
-        flow_lpm = config.FLOW_DEFAULT_LPM
+
+    # Read all 4 flow sensors
+    flow_readings = {}
+    for gid, sensor in flow_sensors.items():
+        flow_readings[gid] = sensor.read_lpm()
+    flow_lpm = float(np.mean(list(flow_readings.values()))) if flow_readings else config.FLOW_DEFAULT_LPM
 
     # Update rolling histories
     for r in readings:
@@ -139,13 +145,14 @@ async def _cycle():
             TEMP_HISTORY[key].append(r.temperature)
     FLOW_HISTORY.append(flow_lpm)
 
-    # Grey-box
+    # Grey-box (per-group flow)
     delta_T_map  = {}
     grey_results = {}
     for r in readings:
         key = (r.group_id, r.mold_id)
         if r.temperature is not None:
-            gb = grey_box.compute(r.group_id, r.mold_id, r.temperature, flow_lpm)
+            g_flow = flow_readings.get(r.group_id, flow_lpm)
+            gb = grey_box.compute(r.group_id, r.mold_id, r.temperature, g_flow)
             grey_results[key] = gb
             delta_T_map[key]  = gb['delta_T_calcaire']
 
@@ -262,6 +269,8 @@ async def _cycle():
             log.warning("n8n webhook failed: %s", e)
 
     influx.write_sensors(readings, delta_T_map)
+    for gid, flpm in flow_readings.items():
+        influx.write_flow(gid, flpm)
     await _broadcast_all()
 
 

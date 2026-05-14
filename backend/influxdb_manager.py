@@ -126,6 +126,45 @@ def query_calibration_temp(group_id: int, mold_id: int) -> Optional[float]:
         return None
 
 
+def write_flow(group_id: int, flow_lpm: float):
+    """Write a single flow measurement to InfluxDB (1 point per group per cycle)."""
+    if _write_api is None:
+        return
+    p = (
+        Point("flow")
+        .tag("group_id", str(group_id))
+        .tag("unit", "lpm")
+        .field("flow_rate", round(flow_lpm, 2))
+    )
+    try:
+        _write_api.write(bucket=config.INFLUX_BUCKET, org=config.INFLUX_ORG, record=p)
+    except Exception as exc:
+        log.error("InfluxDB flow write error group %d: %s", group_id, exc)
+
+
+def query_flow_history(group_id: int, days_back: int = 7) -> List[Dict]:
+    """Return hourly-averaged flow history for diagnostic charts."""
+    if _query_api is None:
+        return []
+    flux = f'''
+    from(bucket: "{config.INFLUX_BUCKET}")
+      |> range(start: -{days_back}d)
+      |> filter(fn: (r) => r._measurement == "flow")
+      |> filter(fn: (r) => r._field == "flow_rate")
+      |> filter(fn: (r) => r.group_id == "{group_id}")
+      |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+    '''
+    try:
+        tables = _query_api.query(flux, org=config.INFLUX_ORG)
+        return [
+            {'timestamp': r.get_time(), 'value': r.get_value()}
+            for table in tables for r in table.records
+        ]
+    except Exception as exc:
+        log.error("InfluxDB flow history query error group %d: %s", group_id, exc)
+        return []
+
+
 def close_influxdb():
     """Close the InfluxDB client."""
     global _client

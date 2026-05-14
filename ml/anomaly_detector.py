@@ -58,7 +58,7 @@ class AnomalyDetector:
     def extract_features(
         self,
         temp_history:       Dict[Tuple, List[float]],   # {mold_key: [t1, t2, ...]}
-        flow_history:       List[float],
+        flow_history:       Dict[int, List[float]],     # {group_id: [f1, f2, ...]}
         delta_T_calcaires:  Dict[Tuple, float],
     ) -> Optional[np.ndarray]:
         """
@@ -109,9 +109,10 @@ class AnomalyDetector:
 
         n_molds = max(len(temp_history), 1)
 
-        flow_arr      = np.array(flow_history[-window:]) if flow_history else np.array([config.FLOW_DEFAULT_LPM])
-        flow_mean     = float(np.mean(flow_arr))
-        flow_var      = float(np.var(flow_arr))
+        flow_means = [float(np.mean(v[-window:])) for v in flow_history.values() if v] or [config.FLOW_DEFAULT_LPM]
+        flow_vars  = [float(np.var(v[-window:]))  for v in flow_history.values() if v] or [0.0]
+        flow_mean  = float(np.mean(flow_means))
+        flow_var   = float(np.mean(flow_vars))
 
         dT_mean = float(np.mean(list(delta_T_calcaires.values()))) if delta_T_calcaires else 0.0
 

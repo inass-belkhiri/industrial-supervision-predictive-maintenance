@@ -48,7 +48,7 @@ log = logging.getLogger(__name__)
 
 # ── State ─────────────────────────────────────────────────────────────────────
 TEMP_HISTORY: Dict[Tuple, deque] = {}
-FLOW_HISTORY: deque              = deque(maxlen=3600)
+FLOW_HISTORY: Dict[int, deque]   = {}
 
 latest_sensors:     List[Dict] = []
 latest_diagnostic:  Dict       = {}
@@ -143,7 +143,10 @@ async def _cycle():
             TEMP_HISTORY[key] = deque(maxlen=3600)
         if r.temperature is not None:
             TEMP_HISTORY[key].append(r.temperature)
-    FLOW_HISTORY.append(flow_lpm)
+    for gid, flpm in flow_readings.items():
+        if gid not in FLOW_HISTORY:
+            FLOW_HISTORY[gid] = deque(maxlen=3600)
+        FLOW_HISTORY[gid].append(flpm)
 
     # Grey-box (per-group flow)
     delta_T_map  = {}
@@ -160,7 +163,7 @@ async def _cycle():
     temp_history_dict = {k: list(v) for k, v in TEMP_HISTORY.items()}
     features = iso_forest.extract_features(
         temp_history      = temp_history_dict,
-        flow_history      = list(FLOW_HISTORY),
+        flow_history      = {gid: list(v) for gid, v in FLOW_HISTORY.items()},
         delta_T_calcaires = delta_T_map,
     )
 

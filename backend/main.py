@@ -111,6 +111,10 @@ async def websocket_endpoint(ws: WebSocket):
         while True:
             await ws.receive_text()
     except WebSocketDisconnect:
+        pass
+    except Exception:
+        log.warning("WS client error", exc_info=True)
+    finally:
         ws_clients.discard(ws)
         log.info("WS client disconnected — total: %d", len(ws_clients))
 

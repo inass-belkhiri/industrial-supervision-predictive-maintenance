@@ -26,6 +26,17 @@ from typing import Dict, List, Set, Tuple
 
 import numpy as np
 
+
+class _SafeEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, (np.integer,)):
+            return int(o)
+        if isinstance(o, (np.floating,)):
+            return float(o)
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        return super().default(o)
+
 import requests
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -284,11 +295,15 @@ async def _cycle():
 # ── Broadcast ─────────────────────────────────────────────────────────────────
 async def _broadcast_all():
     global ws_clients
-    payload = json.dumps({
-        'sensors':     latest_sensors,
-        'diagnostic':  latest_diagnostic,
-        'maintenance': latest_maintenance,
-    })
+    try:
+        payload = json.dumps({
+            'sensors':     latest_sensors,
+            'diagnostic':  latest_diagnostic,
+            'maintenance': latest_maintenance,
+        }, cls=_SafeEncoder)
+    except Exception:
+        log.warning("Broadcast serialization failed", exc_info=True)
+        return
     dead = set()
     for ws in list(ws_clients):
         try:
@@ -304,7 +319,7 @@ async def _broadcast_to(ws: WebSocket):
             'sensors':     latest_sensors,
             'diagnostic':  latest_diagnostic,
             'maintenance': latest_maintenance,
-        }))
+        }, cls=_SafeEncoder))
     except Exception:
         pass
 

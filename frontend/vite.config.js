@@ -6,10 +6,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    strictPort: true,  // ← forcer le port 5173, ne pas changer automatiquement
     proxy: {
       '/ws': {
         target: 'http://localhost:8001',
-        ws: true
+        ws: true,
+        changeOrigin: true,
       }
     }
   }

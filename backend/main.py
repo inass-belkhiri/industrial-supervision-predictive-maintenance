@@ -134,7 +134,9 @@ async def websocket_endpoint(ws: WebSocket):
 async def monitoring_loop():
     while True:
         try:
-            await _cycle()
+            await asyncio.wait_for(_cycle(), timeout=15.0)
+        except asyncio.TimeoutError:
+            log.error("Cycle timed out — Modbus ou capteurs bloqués")
         except Exception as exc:
             log.error("Cycle error: %s", exc, exc_info=True)
         await asyncio.sleep(1.0 / config.ACQUISITION_HZ)

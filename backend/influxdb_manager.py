@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 
 from influxdb_client import InfluxDBClient, Point, WritePrecision
-from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.write_api import ASYNCHRONOUS
 
 import config
 
@@ -22,10 +22,21 @@ _query_api = None
 def init_influxdb():
     """Initialize the InfluxDB client. Uses the existing token/org/bucket from config."""
     global _client, _write_api, _query_api
-    _client    = InfluxDBClient(url=config.INFLUX_URL, token=config.INFLUX_TOKEN, org=config.INFLUX_ORG)
-    _write_api = _client.write_api(write_options=SYNCHRONOUS)
-    _query_api = _client.query_api()
-    log.info("InfluxDB client initialized — bucket: %s", config.INFLUX_BUCKET)
+    try:
+        _client    = InfluxDBClient(url=config.INFLUX_URL, token=config.INFLUX_TOKEN, org=config.INFLUX_ORG, timeout=5_000)
+        _write_api = _client.write_api(write_options=ASYNCHRONOUS)
+        _query_api = _client.query_api()
+        health = _client.ping()
+        if health:
+            log.info("InfluxDB connected — bucket: %s  (version: %s)", config.INFLUX_BUCKET, health)
+        else:
+            log.error("InfluxDB ping returned unhealthy")
+    except Exception as exc:
+        log.error("InfluxDB connection failed — %s", exc)
+        log.error("Check that InfluxDB is running on %s", config.INFLUX_URL)
+        _client    = None
+        _write_api = None
+        _query_api = None
 
 
 def write_sensors(readings, delta_T_calcaire_map: Dict = None):
@@ -39,6 +50,9 @@ def write_sensors(readings, delta_T_calcaire_map: Dict = None):
 
     points = []
     for r in readings:
+        if r.temperature is None:
+            continue
+
         mold_key = (r.group_id, r.mold_id)
         dT_calc  = (delta_T_calcaire_map or {}).get(mold_key, 0.0)
 
@@ -48,12 +62,15 @@ def write_sensors(readings, delta_T_calcaire_map: Dict = None):
             .tag("group_id",  str(r.group_id))
             .tag("position",  r.position)
             .tag("status",    r.status)
-            .field("temperature",     r.temperature if r.temperature is not None else 0.0)
+            .field("temperature",     r.temperature)
             .field("threshold",       r.threshold)
             .field("deviation",       r.deviation if r.deviation is not None else 0.0)
             .field("delta_T_calcaire", dT_calc)
         )
         points.append(p)
+
+    if not points:
+        return
 
     try:
         _write_api.write(bucket=config.INFLUX_BUCKET, org=config.INFLUX_ORG, record=points)

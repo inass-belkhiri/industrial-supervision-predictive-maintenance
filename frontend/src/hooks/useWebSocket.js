@@ -14,6 +14,8 @@ export function useWebSocket() {
   const retryDelay                = useRef(1000)
   const retryTimer                = useRef(null)
 
+  const reconnectRef = useRef(true)
+
   const connect = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
 
@@ -36,10 +38,10 @@ export function useWebSocket() {
 
     ws.onclose = () => {
       setConnected(false)
-      // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
+      if (!reconnectRef.current) return
       retryTimer.current = setTimeout(() => {
         retryDelay.current = Math.min(retryDelay.current * 2, 30000)
-        connect()
+        if (reconnectRef.current) connect()
       }, retryDelay.current)
     }
 
@@ -49,10 +51,15 @@ export function useWebSocket() {
   }, [])
 
   useEffect(() => {
+    reconnectRef.current = true
     connect()
     return () => {
+      reconnectRef.current = false
       clearTimeout(retryTimer.current)
-      if (wsRef.current) wsRef.current.close()
+      if (wsRef.current) {
+        wsRef.current.onclose = null
+        wsRef.current.close()
+      }
     }
   }, [connect])
 

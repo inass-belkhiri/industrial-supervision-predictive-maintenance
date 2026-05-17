@@ -83,8 +83,9 @@ BOOTSTRAP_N             = 1000
 RETRAIN_HOUR            = 2
 
 # ── WEBSOCKET ─────────────────────────────────────────────────────────────────
-WS_HOST = '0.0.0.0'
-WS_PORT = 8001
+WS_HOST           = '0.0.0.0'
+WS_PORT           = 8001
+WS_CLIENT_TIMEOUT = 30   # seconds — déconnecte les clients silencieux (zombies)
 
 # ── ACQUISITION ───────────────────────────────────────────────────────────────
 ACQUISITION_HZ = 1   # readings per second

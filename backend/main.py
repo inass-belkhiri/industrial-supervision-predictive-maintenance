@@ -120,7 +120,9 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         await _broadcast_to(ws)
         while True:
-            await ws.receive_text()
+            await asyncio.wait_for(ws.receive_text(), timeout=config.WS_CLIENT_TIMEOUT)
+    except asyncio.TimeoutError:
+        pass
     except WebSocketDisconnect:
         pass
     except Exception:
@@ -137,6 +139,8 @@ async def monitoring_loop():
             await asyncio.wait_for(_cycle(), timeout=15.0)
         except asyncio.TimeoutError:
             log.error("Cycle timed out — Modbus ou capteurs bloqués")
+        except asyncio.CancelledError:
+            log.warning("Monitoring loop cancelled — restarting")
         except Exception as exc:
             log.error("Cycle error: %s", exc, exc_info=True)
         await asyncio.sleep(1.0 / config.ACQUISITION_HZ)
@@ -309,7 +313,9 @@ async def _broadcast_all():
     dead = set()
     for ws in list(ws_clients):
         try:
-            await ws.send_text(payload)
+            await asyncio.wait_for(ws.send_text(payload), timeout=5.0)
+        except asyncio.TimeoutError:
+            dead.add(ws)
         except Exception:
             dead.add(ws)
     ws_clients -= dead

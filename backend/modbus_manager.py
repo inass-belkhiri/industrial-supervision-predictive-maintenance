@@ -63,29 +63,27 @@ async def _read_one(slave: int, register: int) -> Optional[float]:
     """
     Read a single holding register and return the temperature in degrees C.
 
-    The Lock ensures only one Modbus request is on the RS485 bus at a time.
-    asyncio.wait_for is intentionally removed — it was the root cause of
-    InvalidStateError: wait_for cancelled the Future while pymodbus was
-    still resolving it asynchronously.
-    The pymodbus client timeout (config.MODBUS_TIMEOUT) handles unresponsive
-    slaves cleanly without racing.
+    asyncio.wait_for(timeout=3.0) ensures a single unresponsive slave
+    never blocks the entire 12-sensor batch for more than 3 seconds.
+    InvalidStateError is still caught to handle late responses from pymodbus.
     """
     if _client is None or _bus_lock is None:
         return None
     try:
         async with _bus_lock:
-            result = await _client.read_holding_registers(
-                register, count=1, slave=slave
+            result = await asyncio.wait_for(
+                _client.read_holding_registers(register, count=1, slave=slave),
+                timeout=3.0
             )
         if result.isError():
             return None
         raw = result.registers[0]
         return raw * config.TEMP_SCALE_FACTOR
+    except asyncio.TimeoutError:
+        log.warning("MODBUS read timeout slave=%d reg=%d (skipped)", slave, register)
+        return None
     except asyncio.InvalidStateError:
         log.debug("MODBUS late response (InvalidStateError) slave=%d reg=%d", slave, register)
-        return None
-    except asyncio.TimeoutError:
-        log.debug("MODBUS timeout slave=%d reg=%d", slave, register)
         return None
     except (ModbusException, Exception) as exc:
         log.debug("MODBUS read error slave=%d: %s", slave, exc)
@@ -132,6 +130,12 @@ async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
             deviation   = deviation,
             timestamp   = now,
         ))
+
+    # If ALL sensors failed, try to reconnect Modbus
+    if readings and all(r.temperature is None for r in readings):
+        log.warning("All sensors returned None — attempting Modbus reconnection")
+        await close_modbus()
+        await init_modbus()
 
     return readings
 

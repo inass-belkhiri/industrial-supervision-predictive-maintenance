@@ -63,30 +63,26 @@ async def _read_one(slave: int, register: int) -> Optional[float]:
     """
     Read a single holding register and return the temperature in degrees C.
 
-    asyncio.wait_for(timeout=3.0) ensures a single unresponsive slave
-    never blocks the entire 12-sensor batch for more than 3 seconds.
-    InvalidStateError is still caught to handle late responses from pymodbus.
+    Uses pymodbus's built-in timeout (config.MODBUS_TIMEOUT) rather than
+    asyncio.wait_for — wait_for cancels the underlying pymodbus future,
+    corrupting the client state and breaking all subsequent reads.
     """
     if _client is None or _bus_lock is None:
         return None
     try:
         async with _bus_lock:
-            result = await asyncio.wait_for(
-                _client.read_holding_registers(register, count=1, slave=slave),
-                timeout=3.0
+            result = await _client.read_holding_registers(
+                register, count=1, slave=slave
             )
         if result.isError():
             return None
         raw = result.registers[0]
         return raw * config.TEMP_SCALE_FACTOR
-    except asyncio.TimeoutError:
-        log.warning("MODBUS read timeout slave=%d reg=%d (skipped)", slave, register)
-        return None
     except asyncio.InvalidStateError:
-        log.debug("MODBUS late response (InvalidStateError) slave=%d reg=%d", slave, register)
         return None
-    except (ModbusException, Exception) as exc:
-        log.debug("MODBUS read error slave=%d: %s", slave, exc)
+    except asyncio.TimeoutError:
+        return None
+    except (ModbusException, Exception):
         return None
 
 
@@ -131,11 +127,17 @@ async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
             timestamp   = now,
         ))
 
-    # If ALL sensors failed, try to reconnect Modbus
+    # If ALL sensors failed, try to reconnect Modbus (max once per 30s)
     if readings and all(r.temperature is None for r in readings):
-        log.warning("All sensors returned None — attempting Modbus reconnection")
-        await close_modbus()
-        await init_modbus()
+        now_ts = datetime.now().timestamp()
+        elapsed = now_ts - getattr(read_all_sensors, '_last_reconnect', 0)
+        if elapsed > 30:
+            read_all_sensors._last_reconnect = now_ts
+            log.warning("All sensors returned None — attempting Modbus reconnection")
+            await close_modbus()
+            await init_modbus()
+        else:
+            log.debug("All sensors None, reconnect debounced (%.0fs since last)", elapsed)
 
     return readings
 

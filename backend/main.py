@@ -65,6 +65,8 @@ latest_sensors:     List[Dict] = []
 latest_diagnostic:  Dict       = {}
 latest_maintenance: List[Dict] = []
 
+last_valid_sensors: Dict[Tuple, Dict] = {}
+
 ws_clients: Set[WebSocket] = set()
 
 grey_box   = GreyBoxModel()
@@ -237,20 +239,40 @@ async def _cycle():
     for r in readings:
         key = (r.group_id, r.mold_id)
         gb  = grey_results.get(key, {})
-        sensor_list.append({
+
+        temp   = r.temperature
+        status = r.status
+        dev    = r.deviation
+
+        # If the sensor didn't respond, reuse the last known good value
+        # so the UI stays stable instead of blinking "--"
+        if temp is None and key in last_valid_sensors:
+            prev = last_valid_sensors[key]
+            temp = prev['temperature']
+            dev  = prev['deviation']
+
+        entry = {
             'group_id':         r.group_id,
             'mold_id':          r.mold_id,
             'position':         r.position,
-            'temperature':      r.temperature,
-            'status':           r.status,
+            'temperature':      temp,
+            'status':           status,
             'threshold':        r.threshold,
-            'deviation':        r.deviation,
+            'deviation':        dev,
             'timestamp':        r.timestamp,
             'epaisseur_mm':     gb.get('epaisseur_mm'),
             'delta_T_calcaire': gb.get('delta_T_calcaire'),
             'urgence':          gb.get('urgence', 'OK'),
             'degradation_pct':  gb.get('degradation_pct', 0),
-        })
+        }
+
+        sensor_list.append(entry)
+
+        if temp is not None:
+            last_valid_sensors[key] = {
+                'temperature': temp,
+                'deviation':   dev,
+            }
 
     latest_sensors = sensor_list
     latest_diagnostic = {

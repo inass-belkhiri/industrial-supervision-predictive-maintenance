@@ -8,7 +8,7 @@ MODBUS_BAUDRATE  = 9600
 MODBUS_PARITY    = 'N'
 MODBUS_STOPBITS  = 1
 MODBUS_BYTESIZE  = 8
-MODBUS_TIMEOUT   = 1       # seconds
+MODBUS_TIMEOUT   = 2       # seconds
 
 # MODBUS slave addresses for the 12 temperature sensors
 # Format: { mold_key: (slave_address, register_address) }
@@ -85,7 +85,6 @@ RETRAIN_HOUR            = 2
 # ── WEBSOCKET ─────────────────────────────────────────────────────────────────
 WS_HOST           = '0.0.0.0'
 WS_PORT           = 8001
-WS_CLIENT_TIMEOUT = 30   # seconds — déconnecte les clients silencieux (zombies)
 
 # ── ACQUISITION ───────────────────────────────────────────────────────────────
 ACQUISITION_HZ = 1   # readings per second

@@ -120,9 +120,7 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         await _broadcast_to(ws)
         while True:
-            await asyncio.wait_for(ws.receive_text(), timeout=config.WS_CLIENT_TIMEOUT)
-    except asyncio.TimeoutError:
-        pass
+            await ws.receive_text()
     except WebSocketDisconnect:
         pass
     except Exception:

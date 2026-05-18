@@ -89,7 +89,8 @@ class AnomalyDetector:
 
             # Lag-1 autocorrelation
             if len(arr) > 2:
-                ac = float(np.corrcoef(arr[:-1], arr[1:])[0, 1])
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    ac = float(np.corrcoef(arr[:-1], arr[1:])[0, 1])
                 autocorrs.append(ac if not np.isnan(ac) else 0.0)
 
             # Affected flag

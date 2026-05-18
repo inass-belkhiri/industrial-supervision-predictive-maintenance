@@ -134,9 +134,11 @@ async def websocket_endpoint(ws: WebSocket):
 async def monitoring_loop():
     while True:
         try:
-            await asyncio.wait_for(_cycle(), timeout=15.0)
+            await asyncio.wait_for(_cycle(), timeout=25.0)
         except asyncio.TimeoutError:
-            log.error("Cycle timed out — Modbus ou capteurs bloqués")
+            log.error("Cycle timed out — tentative de reconnexion Modbus")
+            await modbus.close_modbus()
+            await modbus.init_modbus()
         except asyncio.CancelledError:
             log.warning("Monitoring loop cancelled — restarting")
         except Exception as exc:

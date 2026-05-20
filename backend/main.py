@@ -39,8 +39,9 @@ class _SafeEncoder(json.JSONEncoder):
 
 import requests
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 import config
 import modbus_manager as modbus
@@ -98,6 +99,12 @@ async def lifespan(app: FastAPI):
         log.info("No flow sensor pins configured, using default flow rate")
 
     _load_calibrations()
+    try:
+        import modbus_simulator
+        asyncio.create_task(_retrain_all_ridge())
+        log.info("Simulation mode: Ridge pre-entraîné au démarrage")
+    except ImportError:
+        pass
     asyncio.create_task(monitoring_loop())
     asyncio.create_task(daily_retrain_loop())
     log.info("Backend ready — port %d", config.WS_PORT)
@@ -130,6 +137,22 @@ async def websocket_endpoint(ws: WebSocket):
     finally:
         ws_clients.discard(ws)
         log.info("WS client disconnected — total: %d", len(ws_clients))
+
+
+# ── Simulation mode control (HTTP) ──────────────────────────────────────────────
+class _ModeRequest(BaseModel):
+    mode: str
+
+@app.post("/api/sim/mode")
+async def set_sim_mode(req: _ModeRequest):
+    try:
+        import modbus_simulator
+        modbus_simulator.set_mode(req.mode)
+        return {"status": "ok", "mode": req.mode}
+    except ImportError:
+        raise HTTPException(status_code=404, detail="Simulation non disponible en mode production")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ── Monitoring loop ───────────────────────────────────────────────────────────

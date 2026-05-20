@@ -208,6 +208,39 @@ async def _cycle():
             # Get T_heater (assume first sensor reading or separate query)
             temp_heater = config.T_HEATER  # Using config value
 
+            # Build the full 10-feature vector for Random Forest
+            # (iso_forest.extract_features returns 8, RF expects 10)
+            # Missing: flow_drop_flag, delta_T_calcaire_slope, drift_R_squared
+            all_temps_for_r2 = []
+            for key, hist in TEMP_HISTORY.items():
+                if len(hist) >= 10:
+                    all_temps_for_r2.extend(list(hist)[-300:])
+            if all_temps_for_r2:
+                x = np.arange(len(all_temps_for_r2))
+                coeffs = np.polyfit(x, all_temps_for_r2, 1)
+                y_pred = np.polyval(coeffs, x)
+                ss_res = np.sum((np.array(all_temps_for_r2) - y_pred) ** 2)
+                ss_tot = np.sum((np.array(all_temps_for_r2) - np.mean(all_temps_for_r2)) ** 2)
+                drift_R_squared = float(1 - ss_res / ss_tot) if ss_tot > 0 else 0.9
+            else:
+                drift_R_squared = 0.9
+
+            dT_vals = list(delta_T_map.values())
+            delta_T_calcaire_slope = float(np.mean(dT_vals) / 7.0) if dT_vals else 0.0
+
+            rf_features = np.array([[
+                features[0][0],                    # slope_T_mold
+                features[0][1],                    # variance_T_mold
+                features[0][2],                    # affected_molds_ratio
+                features[0][3],                    # sudden_drop_flag
+                features[0][4],                    # flow_rate
+                float(flow_drop),                  # flow_drop_flag
+                features[0][5],                    # flow_variance
+                delta_T_calcaire_slope,            # delta_T_calcaire_slope
+                drift_R_squared,                   # drift_R_squared
+                features[0][7],                    # autocorr_lag1
+            ]])
+
             rule_result = rf.physical_rules(
                 affected_ratio=affected_ratio,
                 sudden_drop=sudden_drop,
@@ -216,7 +249,7 @@ async def _cycle():
                 temp_heater=temp_heater,
             )
             cause_result = rule_result if rule_result else (
-                rf.predict(features) if rf.trained else cause_result
+                rf.predict(rf_features) if rf.trained else cause_result
             )
 
             # ENRICHISSEMENT AMDEC (NOUVEAU)

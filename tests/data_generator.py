@@ -1,10 +1,7 @@
-# tests/data_generator.py
-# Generates synthetic historical data and injects it into InfluxDB.
-# Supports ML training (Ridge, Isolation Forest) and calibration.
-
 import sys
 import os
 import random
+import math
 import logging
 from datetime import datetime, timedelta
 
@@ -19,38 +16,76 @@ import influxdb_manager as influx
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 log = logging.getLogger(__name__)
 
-N_DAYS   = 60   # number of days to generate
-SAMPLE_HZ = 1   # samples per second (stored as 1/min aggregate to keep InfluxDB light)
+N_DAYS   = 60
+SAMPLE_HZ = 1
+
+# ── Group temperature offsets (physical: distance from heater inlet) ──────────
+GROUP_TEMP_OFFSET = {
+    1: +0.3,
+    2:  0.0,
+    3: -0.3,
+    4: -0.5,
+}
+
+# ── Mold position offsets within a group (gauche=edge, centre=hottest) ───────
+MOLD_POSITION_OFFSET = {
+    1: -0.1,
+    2: +0.3,
+    3: -0.2,
+}
+
+# ── Encrassement drift rate per group (°C/day, after day 20) ─────────────────
+# Groups with lower flow or higher temp tend to scale faster
+ENCRASSEMENT_DRIFT = {
+    1: -0.015,
+    2: -0.025,
+    3: -0.030,
+    4: -0.020,
+}
+
+# ── Daily cycle amplitude (ambient temperature effect) ───────────────────────
+DAILY_CYCLE_AMPLITUDE = 0.4
+# Phase offset so minimum is at ~5h, maximum at ~14h
+DAILY_CYCLE_PHASE = 0.21
+
+# ── Localized defect probability per day ──────────────────────────────────────
+LOCAL_DEFECT_PROB = 0.10
+LOCAL_DEFECT_DROP_RANGE = (0.5, 1.5)
+LOCAL_DEFECT_DURATION = (2, 4)
 
 TEMPERATURE_SCENARIOS = {
     'normal': {
         'weight': 0.80,
-        'T_mean': 44.5,
         'T_std':  0.3,
         'flow_mean': 16.5,
         'flow_std':  0.5,
     },
     'calcaire': {
         'weight': 0.10,
-        'T_mean': 43.0,
         'T_std':  0.4,
         'flow_mean': 13.0,
         'flow_std':  1.0,
     },
     'pompe_hs': {
         'weight': 0.05,
-        'T_mean': 39.0,
         'T_std':  1.5,
         'flow_mean': 3.0,
         'flow_std':  0.5,
     },
     'bruit': {
         'weight': 0.05,
-        'T_mean': 44.0,
         'T_std':  1.2,
         'flow_mean': 15.0,
         'flow_std':  3.0,
     },
+}
+
+# ── Flow rate baseline per group (L/min) ─────────────────────────────────────
+GROUP_FLOW_BASELINE = {
+    1: 16.0,
+    2: 16.5,
+    3: 17.0,
+    4: 16.2,
 }
 
 
@@ -66,17 +101,40 @@ def generate_daily_pattern(day_offset: int) -> dict:
     return TEMPERATURE_SCENARIOS[chosen]
 
 
+def daily_cycle_offset(minute: int) -> float:
+    return DAILY_CYCLE_AMPLITUDE * math.sin(
+        2 * math.pi * (minute / 1440.0 - DAILY_CYCLE_PHASE)
+    )
+
+
 def generate_daily_temperature(
-    day_offset: int, mold_id: int, scenario: dict
+    day_offset: int, group_id: int, mold_id: int, scenario: dict
 ) -> list:
-    t_base = scenario['T_mean'] + random.gauss(0, 0.1)
-    if mold_id <= 3:
-        t_base += 0.2
+    group_offset  = GROUP_TEMP_OFFSET.get(group_id, 0.0)
+    mold_offset   = MOLD_POSITION_OFFSET.get(mold_id, 0.0)
+    drift         = 0.0
+    if day_offset > 20:
+        drift = ENCRASSEMENT_DRIFT.get(group_id, -0.02) * (day_offset - 20)
+
+    # Determine if a localized defect occurs today
+    defect_mold = None
+    defect_duration = 0
+    defect_drop = 0.0
+    if random.random() < LOCAL_DEFECT_PROB:
+        defect_mold = mold_id
+        defect_duration = random.randint(*LOCAL_DEFECT_DURATION)
+        defect_drop = random.uniform(*LOCAL_DEFECT_DROP_RANGE)
+
     records = []
     for minute in range(0, 1440, 5):
-        t = t_base + random.gauss(0, scenario['T_std'])
-        if day_offset > 30:
-            t -= 0.02 * (day_offset - 30)
+        cycle = daily_cycle_offset(minute)
+        t = config.T_HEATER + group_offset + mold_offset + cycle + drift
+        t += random.gauss(0, scenario['T_std'])
+
+        # Apply localized defect for this mold
+        if mold_id == defect_mold and minute < defect_duration * 5:
+            t -= defect_drop
+
         records.append({
             'minute': minute,
             'temperature': round(max(30, t), 2),
@@ -85,10 +143,16 @@ def generate_daily_temperature(
 
 
 def generate_flow_rate(day_offset: int, scenario: dict, group_id: int) -> float:
-    base = scenario['flow_mean'] + random.gauss(0, scenario['flow_std'])
+    base = GROUP_FLOW_BASELINE.get(group_id, config.FLOW_DEFAULT_LPM)
+    flow_mean = scenario['flow_mean']
+    flow_std  = scenario['flow_std']
+    if flow_mean < 5.0:
+        val = flow_mean + random.gauss(0, flow_std)
+    else:
+        val = base * (flow_mean / 16.5) + random.gauss(0, flow_std)
     if group_id == 3 and day_offset > 20:
-        base *= 0.6
-    return round(max(0, base), 2)
+        val *= 0.6
+    return round(max(0, val), 2)
 
 
 def inject_historical_data():
@@ -103,9 +167,8 @@ def inject_historical_data():
         timestamp = datetime.now() - timedelta(days=N_DAYS - day)
         scenario = generate_daily_pattern(day)
 
-        # Write temperature data (1 point per 5 minutes per mold)
         for (gid, mid), (slave, reg) in config.SENSOR_MAP.items():
-            temps = generate_daily_temperature(day, mid, scenario)
+            temps = generate_daily_temperature(day, gid, mid, scenario)
             for rec in temps:
                 t = rec['temperature']
                 status = 'ALERTE' if t < config.T_MOLD_CRITICAL else 'OK'
@@ -133,7 +196,6 @@ def inject_historical_data():
                 except Exception as e:
                     log.warning("Write error day %d mold (%d,%d): %s", day, gid, mid, e)
 
-        # Write flow data (1 point per hour per group)
         for gid in config.FLOW_SENSOR_PINS:
             flow_val = generate_flow_rate(day, scenario, gid)
             ts = timestamp + timedelta(hours=12)

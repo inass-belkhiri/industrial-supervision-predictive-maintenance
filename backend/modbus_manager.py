@@ -29,7 +29,7 @@ class SensorReading:
     mold_id     : int
     position    : str
     temperature : Optional[float]
-    status      : str        # "OK" | "ALERTE" | "ERREUR"
+    status      : str        # "OK" | "ALERTE" | "CRITIQUE" | "ERREUR"
     threshold   : float
     deviation   : Optional[float]
     timestamp   : str
@@ -110,6 +110,9 @@ async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
             status    = 'ERREUR'
             deviation = None
         elif temp < config.T_MOLD_CRITICAL:
+            status    = 'CRITIQUE'
+            deviation = round(temp - config.T_HEATER, 3)
+        elif temp < config.T_MOLD_WARNING:
             status    = 'ALERTE'
             deviation = round(temp - config.T_HEATER, 3)
         else:
@@ -140,6 +143,14 @@ async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
             log.debug("All sensors None, reconnect debounced (%.0fs since last)", elapsed)
 
     return readings
+
+
+async def read_heater_temp() -> Optional[float]:
+    """Read the optional heater water temperature sensor (slave 13)."""
+    if config.HEATER_TEMP_SENSOR is None:
+        return None
+    slave, reg = config.HEATER_TEMP_SENSOR
+    return await _read_one(slave, reg)
 
 
 async def close_modbus():

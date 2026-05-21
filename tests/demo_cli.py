@@ -8,7 +8,7 @@ BASE_URL = "http://localhost:8001"
 
 MODES = [
     ('1', 'NORMAL',       'all temperatures stable around 44-45°C'),
-    ('2', 'GRADUAL_DROP', 'slow temperature decay (-0.005°C per call)'),
+    ('2', 'GRADUAL_DROP', 'slow temperature decay (-0.03°C per call)'),
     ('3', 'SUDDEN_DROP',  'sudden -2.5°C drop at 60th call'),
     ('4', 'HEATER_FAIL',  'all molds dropping below 42°C (heater failure)'),
     ('5', 'PUMP_FAIL',    'global drop + erratic readings (pump failure)'),

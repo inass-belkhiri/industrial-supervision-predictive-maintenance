@@ -154,9 +154,11 @@ class _ModeRequest(BaseModel):
 
 @app.post("/api/sim/mode")
 async def set_sim_mode(req: _ModeRequest):
+    global diagnostic_history
     try:
         import modbus_simulator
         modbus_simulator.set_mode(req.mode)
+        diagnostic_history.clear()
         return {"status": "ok", "mode": req.mode}
     except ImportError:
         raise HTTPException(status_code=404, detail="Simulation non disponible en mode production")
@@ -492,43 +494,47 @@ async def _retrain_if_rf():
 async def _retrain_all_ridge():
     global latest_maintenance
     log.info("Starting daily Ridge retraining")
-    maintenance_list = []
+    try:
+        maintenance_list = []
 
-    for (gid, mid) in config.SENSOR_MAP.keys():
-        key         = (gid, mid)
-        cal         = calibration_temps.get(key, config.T_HEATER - 1.5)
-        delta_T_max = max((config.T_HEATER - config.T_MOLD_CRITICAL) - (config.T_HEATER - cal), 0.1)
+        for (gid, mid) in config.SENSOR_MAP.keys():
+            key         = (gid, mid)
+            cal         = calibration_temps.get(key, config.T_HEATER - 1.5)
+            delta_T_max = max((config.T_HEATER - config.T_MOLD_CRITICAL) - (config.T_HEATER - cal), 0.1)
 
-        predictor = ridge_models.get(key)
-        if predictor is None:
-            predictor = RidgePredictor(gid, mid, delta_T_max)
-            ridge_models[key] = predictor
+            predictor = ridge_models.get(key)
+            if predictor is None:
+                predictor = RidgePredictor(gid, mid, delta_T_max)
+                ridge_models[key] = predictor
 
-        records = influx.query_daily_mean_mold(gid, mid, days_back=90)
-        if records:
-            predictor.fit(records)
+            records = influx.query_daily_mean_mold(gid, mid, days_back=90)
+            if records:
+                predictor.fit(records)
 
-        result        = predictor.predict_maintenance()
-        history_chart = [{'day': r['day_offset'], 'v': r['value']} for r in records[-90:]]
-        sensor        = next((s for s in latest_sensors
-                              if s['group_id'] == gid and s['mold_id'] == mid), {})
+            result        = predictor.predict_maintenance()
+            history_chart = [{'day': r['day_offset'], 'v': r['value']} for r in records[-90:]]
+            sensor        = next((s for s in latest_sensors
+                                  if s['group_id'] == gid and s['mold_id'] == mid), {})
 
-        entry = {
-            'group_id':        gid,
-            'mold_id':         mid,
-            'position':        config.POSITION_MAP.get(mid, 'unknown'),
-            'epaisseur_mm':    sensor.get('epaisseur_mm'),
-            'delta_T_calcaire': sensor.get('delta_T_calcaire'),
-            'urgence':         sensor.get('urgence', 'OK'),
-            'degradation_pct': sensor.get('degradation_pct', 0),
-            'history_chart':   history_chart,
-        }
-        if result:
-            entry.update(result)
-        maintenance_list.append(entry)
+            entry = {
+                'group_id':        gid,
+                'mold_id':         mid,
+                'position':        config.POSITION_MAP.get(mid, 'unknown'),
+                'epaisseur_mm':    sensor.get('epaisseur_mm'),
+                'delta_T_calcaire': sensor.get('delta_T_calcaire'),
+                'urgence':         sensor.get('urgence', 'OK'),
+                'degradation_pct': sensor.get('degradation_pct', 0),
+                'history_chart':   history_chart,
+            }
+            if result:
+                entry.update(result)
+            maintenance_list.append(entry)
 
-    latest_maintenance = maintenance_list
-    log.info("Ridge retraining done — %d molds", len(maintenance_list))
+        latest_maintenance = maintenance_list
+        log.info("Ridge retraining done — %d molds", len(maintenance_list))
+    except Exception as exc:
+        log.error("Ridge retraining failed: %s", exc, exc_info=True)
+        latest_maintenance = []
 
 
 # ── Model health loop ─────────────────────────────────────────────────────────

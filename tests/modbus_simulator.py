@@ -15,9 +15,9 @@ log = logging.getLogger(__name__)
 
 SIMULATION_MODES = {
     'NORMAL':       'all temperatures stable around 44-45°C',
-    'GRADUAL_DROP': 'slow temperature decay (-0.005°C per call)',
+    'GRADUAL_DROP': 'slow temperature decay (-0.03°C per call)',
     'SUDDEN_DROP':  'sudden -2°C drop on a random mold',
-    'NOISY':        'normal with 10% random ERREUR readings',
+    'NOISY':        'normal with 10% random ERREUR readings + random fluctuations',
     'HEATER_FAIL':  'all molds dropping below 42°C (heater failure)',
     'PUMP_FAIL':    'global drop + erratic readings (pump failure)',
 }
@@ -41,6 +41,13 @@ def get_mode() -> str:
     return _current_mode
 
 
+def read_heater_temp() -> float:
+    if _current_mode == 'HEATER_FAIL':
+        decay = max(_call_counter * 0.02, 0)
+        return round(45.0 - decay, 2)
+    return round(45.0 + random.gauss(0, 0.3), 2)
+
+
 async def read_all_sensors(calibration_temps: dict = None) -> List[SensorReading]:
     global _call_counter, _base_temps
 
@@ -62,10 +69,10 @@ async def read_all_sensors(calibration_temps: dict = None) -> List[SensorReading
 
         if _current_mode == 'NORMAL':
             temp = base + random.gauss(0, 0.15)
-            temp = max(temp, config.T_MOLD_CRITICAL + 0.5)
+            temp = max(temp, config.T_MOLD_WARNING + 0.5)
 
         elif _current_mode == 'GRADUAL_DROP':
-            decay = _call_counter * 0.005
+            decay = _call_counter * 0.03
             temp = base - decay + random.gauss(0, 0.1)
             temp = max(temp, 35.0)
 
@@ -80,8 +87,8 @@ async def read_all_sensors(calibration_temps: dict = None) -> List[SensorReading
             if random.random() < 0.10:
                 temp = None
             else:
-                temp = base + random.gauss(0, 0.15)
-                temp = max(temp, config.T_MOLD_CRITICAL + 0.5)
+                temp = base + random.gauss(0, 0.15) + random.uniform(-1.5, 1.5)
+                temp = max(temp, 35.0)
 
         elif _current_mode == 'HEATER_FAIL':
             decay = _call_counter * 0.02
@@ -95,11 +102,14 @@ async def read_all_sensors(calibration_temps: dict = None) -> List[SensorReading
                 temp = base - random.uniform(2.0, 4.0) + random.gauss(0, 0.5)
             temp = max(temp, 30.0)
 
-        # Determine status
+        # Determine status (3 levels)
         if temp is None:
             status    = 'ERREUR'
             deviation = None
         elif temp < config.T_MOLD_CRITICAL:
+            status    = 'CRITIQUE'
+            deviation = round(temp - config.T_HEATER, 3)
+        elif temp < config.T_MOLD_WARNING:
             status    = 'ALERTE'
             deviation = round(temp - config.T_HEATER, 3)
         else:

@@ -31,13 +31,6 @@ flow_simulator.patch_flow_sensor()
 import config
 config.MODBUS_PORT = '/dev/ttySIMULATED'
 
-# ── Inject 60 days of historical data into InfluxDB for Ridge + calibrations ──
-
-import data_generator
-log.info("Injecting 60 days of synthetic historical data into InfluxDB...")
-data_generator.inject_historical_data()
-log.info("Historical data injection complete.")
-
 # ── Start backend ──────────────────────────────────────────────────────────────
 
 import uvicorn

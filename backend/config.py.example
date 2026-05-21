@@ -38,8 +38,9 @@ TEMP_SCALE_FACTOR = 0.1
 
 # ── TEMPERATURE THRESHOLDS ────────────────────────────────────────────────────
 T_HEATER          = 45.0    # heater setpoint (degrees C)
-T_MOLD_CRITICAL   = 42.0    # minimum acceptable mold temperature
-T_TOLERANCE       = 3.0     # process tolerance (degrees C)
+T_TOLERANCE       = 3.0     # process tolerance (degrees C) — bande 42–48°C
+T_MOLD_WARNING    = 42.0    # < 42 → ALERTE (warning)
+T_MOLD_CRITICAL   = 40.0    # < 40 → CRITIQUE
 
 # ── INFLUXDB ─────────────────────────────────────────────────────────────────
 INFLUX_URL    = 'http://localhost:8086'
@@ -189,3 +190,15 @@ AMDEC_CAUSE_MAPPING = {
 
 # ── N8N AUTOMATION ────────────────────────────────────────────────────────────
 N8N_WEBHOOK_ALERT = 'http://localhost:5678/webhook/alerte'
+
+# ── HEATER TEMPERATURE SENSOR (optional, for real mode) ──────────────────────
+# Set to a (slave, register) tuple if a physical sensor is available on Modbus.
+# When None, the backend falls back to T_HEATER (45°C setpoint).
+HEATER_TEMP_SENSOR = None       # e.g. (13, 0) for slave 13, register 0
+
+# ── MODEL HEALTH EVALUATION ──────────────────────────────────────────────────
+EVAL_INTERVAL_CYCLES = 600      # evaluate model health every 600 cycles (~10min)
+EVAL_WINDOW_MINUTES  = 30       # sliding window for feature extraction
+EVAL_PERSISTENCE     = 3        # consecutive bad evaluations before retrain
+IF_ANOMALY_RATE_MAX  = 0.15     # max acceptable anomaly rate before retrain
+RF_F1_WEIGHTED_MIN   = 0.75     # min acceptable F1-weighted before retrain

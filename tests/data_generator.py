@@ -55,7 +55,7 @@ LOCAL_DEFECT_DURATION = (2, 4)
 
 TEMPERATURE_SCENARIOS = {
     'normal': {
-        'weight': 0.80,
+        'weight': 0.75,
         'T_std':  0.3,
         'flow_mean': 16.5,
         'flow_std':  0.5,
@@ -78,6 +78,12 @@ TEMPERATURE_SCENARIOS = {
         'flow_mean': 15.0,
         'flow_std':  3.0,
     },
+    'critique': {
+        'weight': 0.05,
+        'T_std':  2.0,
+        'flow_mean': 10.0,
+        'flow_std':  2.0,
+    },
 }
 
 # ── Flow rate baseline per group (L/min) ─────────────────────────────────────
@@ -89,7 +95,7 @@ GROUP_FLOW_BASELINE = {
 }
 
 
-def generate_daily_pattern(day_offset: int) -> dict:
+def generate_daily_pattern(day_offset: int) -> str:
     r = random.random()
     cumul = 0.0
     chosen = 'normal'
@@ -98,7 +104,7 @@ def generate_daily_pattern(day_offset: int) -> dict:
         if r <= cumul:
             chosen = name
             break
-    return TEMPERATURE_SCENARIOS[chosen]
+    return chosen
 
 
 def daily_cycle_offset(minute: int) -> float:
@@ -108,7 +114,7 @@ def daily_cycle_offset(minute: int) -> float:
 
 
 def generate_daily_temperature(
-    day_offset: int, group_id: int, mold_id: int, scenario: dict
+    day_offset: int, group_id: int, mold_id: int, scenario: dict, chosen: str = 'normal'
 ) -> list:
     group_offset  = GROUP_TEMP_OFFSET.get(group_id, 0.0)
     mold_offset   = MOLD_POSITION_OFFSET.get(mold_id, 0.0)
@@ -128,7 +134,9 @@ def generate_daily_temperature(
     records = []
     for minute in range(0, 1440, 5):
         cycle = daily_cycle_offset(minute)
-        t = config.T_HEATER + group_offset + mold_offset + cycle + drift
+        # Apply negative offset for critique scenario
+        scenario_offset = -3.0 if chosen == 'critique' else 0.0
+        t = config.T_HEATER + group_offset + mold_offset + cycle + drift + scenario_offset
         t += random.gauss(0, scenario['T_std'])
 
         # Apply localized defect for this mold
@@ -137,7 +145,7 @@ def generate_daily_temperature(
 
         records.append({
             'minute': minute,
-            'temperature': round(max(30, t), 2),
+            'temperature': round(max(25, t), 2),
         })
     return records
 
@@ -165,13 +173,19 @@ def inject_historical_data():
 
     for day in range(N_DAYS):
         timestamp = datetime.now() - timedelta(days=N_DAYS - day)
-        scenario = generate_daily_pattern(day)
+        scenario_name = generate_daily_pattern(day)
+        scenario = TEMPERATURE_SCENARIOS[scenario_name]
 
         for (gid, mid), (slave, reg) in config.SENSOR_MAP.items():
-            temps = generate_daily_temperature(day, gid, mid, scenario)
+            temps = generate_daily_temperature(day, gid, mid, scenario, scenario_name)
             for rec in temps:
                 t = rec['temperature']
-                status = 'ALERTE' if t < config.T_MOLD_CRITICAL else 'OK'
+                if t < config.T_MOLD_CRITICAL:
+                    status = 'CRITIQUE'
+                elif t < config.T_MOLD_WARNING:
+                    status = 'ALERTE'
+                else:
+                    status = 'OK'
                 deviation = round(t - config.T_HEATER, 3)
                 ts = timestamp + timedelta(minutes=rec['minute'])
 

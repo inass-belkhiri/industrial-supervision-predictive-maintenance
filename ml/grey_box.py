@@ -110,13 +110,13 @@ class GreyBoxModel:
 
     @staticmethod
     def _classify_urgency(T_mold: float) -> str:
-        if T_mold >= 43.5:
+        if T_mold >= 42.0:
             return 'OK'
-        elif T_mold >= 43.0:
+        elif T_mold >= 41.5:
             return 'FAIBLE'
-        elif T_mold >= 42.5:
+        elif T_mold >= 41.0:
             return 'MOYEN'
-        elif T_mold >= 42.0:
+        elif T_mold >= 40.5:
             return 'HAUTE'
         else:
             return 'URGENT'

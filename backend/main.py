@@ -47,10 +47,11 @@ import config
 import modbus_manager as modbus
 import influxdb_manager as influx
 from flow_sensor     import FlowSensor
-from grey_box        import GreyBoxModel
+from grey_box         import GreyBoxModel
 from anomaly_detector import AnomalyDetector
 from cause_classifier import CauseClassifier
 from ridge_predictor  import RidgePredictor
+from model_evaluator  import run_evaluation, should_retrain
 
 logging.basicConfig(
     level  = logging.INFO,
@@ -78,6 +79,13 @@ calibration_temps: Dict[Tuple, float]     = {}
 diagnostic_history: List[Dict]            = []
 
 flow_sensors: Dict[int, FlowSensor] = {}
+
+# Model health evaluation state
+_eval_cycle_counter = 0
+_metrics_history = {
+    'if_anomaly_rate': [],
+    'rf_f1_weighted': [],
+}
 
 
 # ── Startup / Shutdown ────────────────────────────────────────────────────────
@@ -107,6 +115,7 @@ async def lifespan(app: FastAPI):
         pass
     asyncio.create_task(monitoring_loop())
     asyncio.create_task(daily_retrain_loop())
+    asyncio.create_task(model_health_loop())
     log.info("Backend ready — port %d", config.WS_PORT)
     yield
     await modbus.close_modbus()
@@ -176,6 +185,16 @@ async def _cycle():
 
     readings = await modbus.read_all_sensors(calibration_temps)
 
+    # Read heater temperature (simulated or real)
+    temp_heater = None
+    try:
+        import modbus_simulator
+        temp_heater = modbus_simulator.read_heater_temp()
+    except ImportError:
+        temp_heater = await modbus.read_heater_temp()
+    if temp_heater is None:
+        temp_heater = config.T_HEATER
+
     # Read all 4 flow sensors
     flow_readings = {}
     for gid, sensor in flow_sensors.items():
@@ -220,7 +239,7 @@ async def _cycle():
     if features is not None:
         anomaly_result = iso_forest.predict(features)
         if anomaly_result['anomaly_detected']:
-            affected_molds = [r.mold_id for r in readings if r.status == 'ALERTE']
+            affected_molds = [r.mold_id for r in readings if r.status in ('ALERTE', 'CRITIQUE')]
             affected_ratio = len(affected_molds) / config.N_MOLDS
             sudden_drop    = any(
                 len(list(TEMP_HISTORY.get(k, []))) >= 120 and
@@ -228,8 +247,6 @@ async def _cycle():
                 for k in TEMP_HISTORY
             )
             flow_drop = flow_lpm < 0.5 * config.FLOW_DEFAULT_LPM
-            # Get T_heater (assume first sensor reading or separate query)
-            temp_heater = config.T_HEATER  # Using config value
 
             # Build the full 10-feature vector for Random Forest
             # (iso_forest.extract_features returns 8, RF expects 10)
@@ -346,16 +363,23 @@ async def _cycle():
         },
     }
 
-    # ENVOI WEBHOOK N8N (NOUVEAU)
+    # ENVOI WEBHOOK N8N — severity 3 niveaux
     if anomaly_result['anomaly_detected']:
+        worst_status = 'OK'
+        for s in latest_sensors:
+            st = s.get('status', 'OK')
+            if st == 'CRITIQUE':
+                worst_status = 'CRITIQUE'
+                break
+            if st == 'ALERTE':
+                worst_status = 'ALERTE'
+        severity_map = {'CRITIQUE': 'CRITICAL', 'ALERTE': 'WARNING', 'OK': 'WARNING'}
         try:
             requests.post(
                 config.N8N_WEBHOOK_ALERT,
                 json={
                     'timestamp': datetime.now().isoformat(),
-                    'severity': 'CRITICAL' if any(
-                        s.get('status') == 'ALERTE' for s in latest_sensors
-                    ) else 'WARNING',
+                    'severity': severity_map.get(worst_status, 'WARNING'),
                     'cause': cause_result.get('cause'),
                     'confidence': cause_result.get('confidence'),
                     'amdec_criticite': cause_result.get('amdec_criticite'),
@@ -366,7 +390,7 @@ async def _cycle():
                 },
                 timeout=5
             )
-            log.info("Alert sent to n8n webhook")
+            log.info("Alert sent to n8n webhook (severity: %s)", severity_map.get(worst_status, 'WARNING'))
         except Exception as e:
             log.warning("n8n webhook failed: %s", e)
 
@@ -374,6 +398,10 @@ async def _cycle():
     for gid, flpm in flow_readings.items():
         influx.write_flow(gid, flpm)
     await _broadcast_all()
+
+    # Model health evaluation cycle counter
+    global _eval_cycle_counter
+    _eval_cycle_counter += 1
 
 
 # ── Broadcast ─────────────────────────────────────────────────────────────────
@@ -422,6 +450,45 @@ async def daily_retrain_loop():
         await _retrain_all_ridge()
 
 
+async def _retrain_if_rf():
+    log.info("Retraining Isolation Forest + Random Forest from InfluxDB data")
+    try:
+        raw = influx.query_recent(minutes=config.EVAL_WINDOW_MINUTES)
+        from model_evaluator import build_feature_vectors, auto_label_anomaly, auto_label_cause
+        features_if, features_rf = build_feature_vectors(raw)
+        if features_if is None:
+            log.warning("Retrain skipped: insufficient data")
+            return
+
+        n_samples = max(len(raw.get('temperatures', [])), 50)
+        if features_if.shape[0] == 1:
+            X_if = features_if
+            for _ in range(max(n_samples // 10, 5)):
+                noise = np.random.randn(1, 8) * 0.05
+                X_if = np.vstack([X_if, features_if + noise])
+        else:
+            X_if = features_if
+        iso_forest.train(X_if)
+        log.info("Isolation Forest retrained on %d samples", len(X_if))
+
+        if features_rf is not None and raw.get('temperatures'):
+            X_rf_list, y_rf_list = [], []
+            true_cause = auto_label_cause(raw)
+            if true_cause:
+                if features_rf.shape[0] == 1:
+                    X_rf = features_rf
+                    for _ in range(max(n_samples // 10, 5)):
+                        noise = np.random.randn(1, 10) * 0.05
+                        X_rf = np.vstack([X_rf, features_rf + noise])
+                else:
+                    X_rf = features_rf
+                y_list = [true_cause] * len(X_rf)
+                rf.train(X_rf, y_list)
+                log.info("Random Forest retrained on %d samples, cause: %s", len(X_rf), true_cause)
+    except Exception as exc:
+        log.error("Retrain IF/RF failed: %s", exc, exc_info=True)
+
+
 async def _retrain_all_ridge():
     global latest_maintenance
     log.info("Starting daily Ridge retraining")
@@ -462,6 +529,57 @@ async def _retrain_all_ridge():
 
     latest_maintenance = maintenance_list
     log.info("Ridge retraining done — %d molds", len(maintenance_list))
+
+
+# ── Model health loop ─────────────────────────────────────────────────────────
+async def model_health_loop():
+    global _eval_cycle_counter, _metrics_history
+    while True:
+        try:
+            await asyncio.sleep(1.0)
+            if _eval_cycle_counter < config.EVAL_INTERVAL_CYCLES:
+                continue
+
+            _eval_cycle_counter = 0
+            log.info("Model health evaluation starting...")
+
+            if_metrics, rf_metrics = run_evaluation(
+                iso_forest, rf, influx,
+                minutes=config.EVAL_WINDOW_MINUTES
+            )
+
+            if 'error' in if_metrics or 'error' in rf_metrics:
+                log.warning("Model health evaluation skipped: %s / %s",
+                            if_metrics.get('error'), rf_metrics.get('error'))
+                continue
+
+            anomaly_rate = if_metrics.get('anomaly_rate', 0)
+            rf_f1 = rf_metrics.get('f1_weighted', 0)
+
+            _metrics_history['if_anomaly_rate'].append(anomaly_rate)
+            _metrics_history['rf_f1_weighted'].append(rf_f1)
+
+            if len(_metrics_history['if_anomaly_rate']) > config.EVAL_PERSISTENCE:
+                _metrics_history['if_anomaly_rate'].pop(0)
+                _metrics_history['rf_f1_weighted'].pop(0)
+
+            decision, reasons = should_retrain(
+                _metrics_history,
+                if_anomaly_rate_max=config.IF_ANOMALY_RATE_MAX,
+                rf_f1_weighted_min=config.RF_F1_WEIGHTED_MIN,
+                persistence=config.EVAL_PERSISTENCE,
+            )
+
+            if decision:
+                log.warning("Model retrain triggered: %s", reasons)
+                await _retrain_if_rf()
+                _metrics_history = {'if_anomaly_rate': [], 'rf_f1_weighted': []}
+                log.info("Model retrain completed, metrics history reset")
+
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            log.error("Model health loop error: %s", exc, exc_info=True)
 
 
 # ── Calibration ───────────────────────────────────────────────────────────────

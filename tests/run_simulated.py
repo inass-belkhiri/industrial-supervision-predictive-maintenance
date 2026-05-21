@@ -30,7 +30,6 @@ flow_simulator.patch_flow_sensor()
 # 3. Override config to force simulation-safe settings
 import config
 config.MODBUS_PORT = '/dev/ttySIMULATED'
-config.LED_GPIO_PIN = None  # disable LED strip in simulation
 
 # ── Inject 60 days of historical data into InfluxDB for Ridge + calibrations ──
 

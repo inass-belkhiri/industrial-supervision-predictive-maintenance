@@ -182,6 +182,58 @@ def query_flow_history(group_id: int, days_back: int = 7) -> List[Dict]:
         return []
 
 
+def query_recent(minutes: int = 30) -> dict:
+    """
+    Fetch recent raw temperature + flow + delta_T_calcaire data from InfluxDB.
+    Returns { 'temperatures': [...], 'flows': [...], 'delta_T': [...], 'timestamps': [...] }.
+    """
+    if _query_api is None:
+        return {'temperatures': [], 'flows': [], 'delta_T': [], 'timestamps': []}
+
+    flux = f'''
+    from(bucket: "{config.INFLUX_BUCKET}")
+      |> range(start: -{minutes}m)
+      |> filter(fn: (r) => r._measurement == "temperature")
+      |> filter(fn: (r) => r._field == "temperature" or r._field == "delta_T_calcaire" or r._field == "deviation")
+      |> yield(name: "recent")
+    '''
+    try:
+        tables = _query_api.query(flux, org=config.INFLUX_ORG)
+        data = {'temperatures': [], 'flows': [], 'delta_T': [], 'timestamps': []}
+        for table in tables:
+            for record in table.records:
+                field = record.get_field()
+                val = record.get_value()
+                ts = record.get_time()
+                data['timestamps'].append(ts)
+                group = record.values.get('group_id', '')
+                mold = record.values.get('mold_id', '')
+                if field == 'temperature':
+                    data['temperatures'].append({'group': group, 'mold': mold, 'value': val, 'time': ts})
+                elif field == 'delta_T_calcaire':
+                    data['delta_T'].append({'group': group, 'mold': mold, 'value': val, 'time': ts})
+        # Get flow data
+        flow_flux = f'''
+        from(bucket: "{config.INFLUX_BUCKET}")
+          |> range(start: -{minutes}m)
+          |> filter(fn: (r) => r._measurement == "flow")
+          |> filter(fn: (r) => r._field == "flow_rate")
+          |> yield(name: "flow_recent")
+        '''
+        flow_tables = _query_api.query(flow_flux, org=config.INFLUX_ORG)
+        for table in flow_tables:
+            for record in table.records:
+                data['flows'].append({
+                    'group': record.values.get('group_id', ''),
+                    'value': record.get_value(),
+                    'time': record.get_time()
+                })
+        return data
+    except Exception as exc:
+        log.error("InfluxDB query_recent error: %s", exc)
+        return {'temperatures': [], 'flows': [], 'delta_T': [], 'timestamps': []}
+
+
 def close_influxdb():
     """Close the InfluxDB client."""
     global _client

@@ -48,14 +48,12 @@ INFLUX_TOKEN  = 'YOUR_INFLUX_TOKEN_HERE'
 INFLUX_ORG    = 'temperature-monitoring'
 INFLUX_BUCKET = 'sensors'
 
-# ── TELEGRAM ──────────────────────────────────────────────────────────────────
-TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE'
-TELEGRAM_CHAT_ID   = 'YOUR_CHAT_ID_HERE'
-
-# ── LED STRIP (GPIO) ──────────────────────────────────────────────────────────
-LED_GPIO_PIN   = 18
-LED_COUNT      = 30
-LED_BRIGHTNESS = 128
+# ── TELEGRAM (optionnel, géré par n8n par défaut) ────────────────────────────
+# Décommentez si n8n n'est pas disponible et que vous voulez un envoi direct
+# depuis le backend.
+# TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE'
+# TELEGRAM_OPERATORS_ID = 'YOUR_OPERATORS_GROUP_ID_HERE'
+# TELEGRAM_CHEF_ID = 'YOUR_TEAM_LEADER_ID_HERE'
 
 # ── FLOW SENSORS (YF-S201 Hall Effect, 1 per heater group) ─────────────────────
 # Wiring: Red=5V, Black=GND, Yellow=Signal (GPIO)

@@ -109,6 +109,7 @@ async def lifespan(app: FastAPI):
     _load_calibrations()
     try:
         import modbus_simulator
+        modbus_simulator.attach_histories(TEMP_HISTORY, FLOW_HISTORY, last_valid_sensors)
         asyncio.create_task(_retrain_all_ridge())
         log.info("Simulation mode: Ridge pre-entraîné au démarrage")
     except ImportError:
@@ -154,11 +155,12 @@ class _ModeRequest(BaseModel):
 
 @app.post("/api/sim/mode")
 async def set_sim_mode(req: _ModeRequest):
-    global diagnostic_history
+    global diagnostic_history, latest_diagnostic
     try:
         import modbus_simulator
         modbus_simulator.set_mode(req.mode)
         diagnostic_history.clear()
+        latest_diagnostic = {}
         return {"status": "ok", "mode": req.mode}
     except ImportError:
         raise HTTPException(status_code=404, detail="Simulation non disponible en mode production")
@@ -494,6 +496,12 @@ async def _retrain_if_rf():
 async def _retrain_all_ridge():
     global latest_maintenance
     log.info("Starting daily Ridge retraining")
+    for _ in range(30):
+        if latest_sensors:
+            break
+        await asyncio.sleep(1.0)
+    else:
+        log.warning("Ridge retraining: no sensor data yet, proceeding anyway")
     try:
         maintenance_list = []
 

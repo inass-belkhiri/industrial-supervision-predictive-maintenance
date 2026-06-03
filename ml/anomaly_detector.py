@@ -16,8 +16,10 @@ import config
 
 log = logging.getLogger(__name__)
 
-MODEL_PATH  = 'models/isolation_forest.pkl'
-SCALER_PATH = 'models/scaler_if.pkl'
+_ML_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_ML_DIR)
+MODEL_PATH  = os.path.join(_PROJECT_ROOT, 'models', 'isolation_forest.pkl')
+SCALER_PATH = os.path.join(_PROJECT_ROOT, 'models', 'scaler_if.pkl')
 
 
 class AnomalyDetector:

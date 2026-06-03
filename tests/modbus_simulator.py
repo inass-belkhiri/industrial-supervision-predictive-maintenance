@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 SIMULATION_MODES = {
     'NORMAL':       'all temperatures stable around 44-45°C',
     'GRADUAL_DROP': 'slow temperature decay (-0.03°C per call)',
-    'SUDDEN_DROP':  'sudden -2°C drop on a random mold',
+    'SUDDEN_DROP':  'sudden -5°C drop below critical threshold on all molds',
     'NOISY':        'normal with 10% random ERREUR readings + random fluctuations',
     'HEATER_FAIL':  'all molds dropping below 42°C (heater failure)',
     'PUMP_FAIL':    'global drop + erratic readings (pump failure)',
@@ -26,6 +26,29 @@ _call_counter = 0
 _current_mode  = 'NORMAL'
 _base_temps    = {}
 
+# References to backend in-memory histories (attached by main.py at startup)
+_temp_history_ref   = None
+_flow_history_ref   = None
+_last_valid_ref     = None
+
+
+def attach_histories(temp_history, flow_history, last_valid_sensors):
+    global _temp_history_ref, _flow_history_ref, _last_valid_ref
+    _temp_history_ref = temp_history
+    _flow_history_ref = flow_history
+    _last_valid_ref   = last_valid_sensors
+    log.info("Simulator attached to backend histories")
+
+
+def _clear_backend_histories():
+    if _temp_history_ref is not None:
+        _temp_history_ref.clear()
+    if _flow_history_ref is not None:
+        _flow_history_ref.clear()
+    if _last_valid_ref is not None:
+        _last_valid_ref.clear()
+    log.info("Backend histories cleared for mode switch")
+
 
 def set_mode(mode: str):
     global _current_mode, _call_counter, _base_temps
@@ -34,6 +57,7 @@ def set_mode(mode: str):
     _current_mode = mode
     _call_counter = 0
     _base_temps   = {}
+    _clear_backend_histories()
     log.info("Simulator mode set to '%s' — %s", mode, SIMULATION_MODES[mode])
 
 
@@ -79,7 +103,7 @@ async def read_all_sensors(calibration_temps: dict = None) -> List[SensorReading
         elif _current_mode == 'SUDDEN_DROP':
             temp = base + random.gauss(0, 0.1)
             if _call_counter == 60:
-                temp -= 2.5
+                temp -= 5.0
                 _base_temps[key] = temp
             temp = max(temp, 35.0)
 

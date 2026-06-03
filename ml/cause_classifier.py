@@ -17,8 +17,10 @@ import config
 
 log = logging.getLogger(__name__)
 
-MODEL_PATH   = 'models/random_forest.pkl'
-ENCODER_PATH = 'models/label_encoder.pkl'
+_ML_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_ML_DIR)
+MODEL_PATH   = os.path.join(_PROJECT_ROOT, 'models', 'random_forest.pkl')
+ENCODER_PATH = os.path.join(_PROJECT_ROOT, 'models', 'label_encoder.pkl')
 
 CLASSES = [
     'CALCAIRE_TUYAUX',

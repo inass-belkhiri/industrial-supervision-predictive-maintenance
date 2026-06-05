@@ -19,31 +19,13 @@ if ROOT_DIR not in sys.path:
 import asyncio
 import json
 import logging
-from contextlib import asynccontextmanager
-from datetime import datetime
-from collections import deque
-from typing import Dict, List, Set, Tuple
-
-import numpy as np
-
-
-class _SafeEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, (np.integer,)):
-            return int(o)
-        if isinstance(o, (np.floating,)):
-            return float(o)
-        if isinstance(o, np.ndarray):
-            return o.tolist()
-        return super().default(o)
-
-import requests
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import config
+import alerting
 import modbus_manager as modbus
 import influxdb_manager as influx
 from flow_sensor     import FlowSensor
@@ -178,7 +160,8 @@ async def monitoring_loop():
             await modbus.close_modbus()
             await modbus.init_modbus()
         except asyncio.CancelledError:
-            log.warning("Monitoring loop cancelled — restarting")
+            log.warning("Monitoring loop cancelled — stopping")
+            break
         except Exception as exc:
             log.error("Cycle error: %s", exc, exc_info=True)
         await asyncio.sleep(1.0 / config.ACQUISITION_HZ)
@@ -367,7 +350,7 @@ async def _cycle():
         },
     }
 
-    # ENVOI WEBHOOK N8N — severity 3 niveaux
+    # ENVOI D'ALERTE DIRECT — Telegram + Email (sans n8n)
     if anomaly_result['anomaly_detected']:
         worst_status = 'OK'
         for s in latest_sensors:
@@ -378,25 +361,15 @@ async def _cycle():
             if st == 'ALERTE':
                 worst_status = 'ALERTE'
         severity_map = {'CRITIQUE': 'CRITICAL', 'ALERTE': 'WARNING', 'OK': 'WARNING'}
-        try:
-            requests.post(
-                config.N8N_WEBHOOK_ALERT,
-                json={
-                    'timestamp': datetime.now().isoformat(),
-                    'severity': severity_map.get(worst_status, 'WARNING'),
-                    'cause': cause_result.get('cause'),
-                    'confidence': cause_result.get('confidence'),
-                    'amdec_criticite': cause_result.get('amdec_criticite'),
-                    'amdec_priorite': cause_result.get('amdec_priorite'),
-                    'actions': cause_result.get('actions', []),
-                    'affected_molds': affected_molds,
-                    'alert_type': 'THERMAL_ANOMALY'
-                },
-                timeout=5
-            )
-            log.info("Alert sent to n8n webhook (severity: %s)", severity_map.get(worst_status, 'WARNING'))
-        except Exception as e:
-            log.warning("n8n webhook failed: %s", e)
+        alerting.send_alert(
+            severity=severity_map.get(worst_status, 'WARNING'),
+            cause=cause_result.get('cause'),
+            confidence=cause_result.get('confidence'),
+            actions=cause_result.get('actions', []),
+            amdec_criticite=cause_result.get('amdec_criticite'),
+            amdec_priorite=cause_result.get('amdec_priorite'),
+            affected_molds=affected_molds,
+        )
 
     influx.write_sensors(readings, delta_T_map)
     for gid, flpm in flow_readings.items():
@@ -445,13 +418,18 @@ async def _broadcast_to(ws: WebSocket):
 # ── Daily retrain ─────────────────────────────────────────────────────────────
 async def daily_retrain_loop():
     while True:
-        now      = datetime.now()
-        next_run = now.replace(hour=config.RETRAIN_HOUR, minute=0, second=0, microsecond=0)
-        if next_run <= now:
-            from datetime import timedelta
-            next_run = next_run + timedelta(days=1)
-        await asyncio.sleep((next_run - now).total_seconds())
-        await _retrain_all_ridge()
+        try:
+            now      = datetime.now()
+            next_run = now.replace(hour=config.RETRAIN_HOUR, minute=0, second=0, microsecond=0)
+            if next_run <= now:
+                from datetime import timedelta
+                next_run = next_run + timedelta(days=1)
+            await asyncio.sleep((next_run - now).total_seconds())
+            await _retrain_all_ridge()
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            log.error("daily_retrain_loop error: %s", exc, exc_info=True)
 
 
 async def _retrain_if_rf():

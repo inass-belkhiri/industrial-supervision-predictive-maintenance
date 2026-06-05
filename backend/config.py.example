@@ -2,6 +2,8 @@
 # Exemple de configuration pour le backend
 # Copiez ce fichier vers config.py et adaptez les valeurs à votre environnement
 
+import os
+
 # ── MODBUS ────────────────────────────────────────────────────────────────────
 MODBUS_PORT      = '/dev/ttyUSB0'
 MODBUS_BAUDRATE  = 9600
@@ -48,12 +50,18 @@ INFLUX_TOKEN  = 'YOUR_INFLUX_TOKEN_HERE'
 INFLUX_ORG    = 'temperature-monitoring'
 INFLUX_BUCKET = 'sensors'
 
-# ── TELEGRAM (optionnel, géré par n8n par défaut) ────────────────────────────
-# Décommentez si n8n n'est pas disponible et que vous voulez un envoi direct
-# depuis le backend.
-# TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE'
-# TELEGRAM_OPERATORS_ID = 'YOUR_OPERATORS_GROUP_ID_HERE'
-# TELEGRAM_CHEF_ID = 'YOUR_TEAM_LEADER_ID_HERE'
+# ── ALERTES — Telegram et Email (envoi direct) ───────────────────────────────
+# Remplacer les valeurs par vos tokens Telegram et identifiants SMTP.
+TELEGRAM_BOT_TOKEN    = os.getenv('TELEGRAM_BOT_TOKEN',    'YOUR_BOT_TOKEN')
+TELEGRAM_OPERATORS_ID = os.getenv('TELEGRAM_OPERATORS_ID', 'YOUR_GROUP_ID')
+TELEGRAM_CHEF_ID      = os.getenv('TELEGRAM_CHEF_ID',     'YOUR_CHEF_ID')
+
+SMTP_HOST     = os.getenv('SMTP_HOST',     'smtp.gmail.com')
+SMTP_PORT     = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USER     = os.getenv('SMTP_USER',     'YOUR_EMAIL@gmail.com')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', 'YOUR_APP_PASSWORD')
+EMAIL_FROM    = os.getenv('EMAIL_FROM',    'YOUR_EMAIL@gmail.com')
+EMAIL_TO      = os.getenv('EMAIL_TO',      'chef.equipe@example.ma')
 
 # ── FLOW SENSORS (YF-S201 Hall Effect, 1 per heater group) ─────────────────────
 # Wiring: Red=5V, Black=GND, Yellow=Signal (GPIO)
@@ -185,9 +193,6 @@ AMDEC_CAUSE_MAPPING = {
     'NORMAL': [],
     'ERREUR': ['HEATER_POMPE_HS', 'HEATER_RESISTANCE_HS']
 }
-
-# ── N8N AUTOMATION ────────────────────────────────────────────────────────────
-N8N_WEBHOOK_ALERT = 'http://localhost:5678/webhook/alerte'
 
 # ── HEATER TEMPERATURE SENSOR (optional, for real mode) ──────────────────────
 # Set to a (slave, register) tuple if a physical sensor is available on Modbus.

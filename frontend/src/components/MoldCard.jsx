@@ -16,9 +16,10 @@ const POSITION_LABELS = {
 }
 
 const STATUS_LABELS = {
-  OK:     'Normal',
-  ALERTE: 'Alerte',
-  ERREUR: 'Erreur',
+  OK:       'Normal',
+  ALERTE:   'Alerte',
+  ERREUR:   'Erreur',
+  CRITIQUE: 'Critique',
 }
 
 const CustomTooltip = ({ active, payload }) => {
@@ -45,9 +46,10 @@ export default function MoldCard({ mold }) {
 
   // Determine card border accent color by status
   const borderColor = {
-    OK:     'border-l-emerald-500',
-    ALERTE: 'border-l-red-500',
-    ERREUR: 'border-l-amber-500',
+    OK:       'border-l-emerald-500',
+    ALERTE:   'border-l-red-500',
+    ERREUR:   'border-l-amber-500',
+    CRITIQUE: 'border-l-red-700',
   }[status] ?? 'border-l-slate-600'
 
   // Prepare sparkline data (keep last 600 points = 10 min at 1Hz)
@@ -88,7 +90,7 @@ export default function MoldCard({ mold }) {
             : status === 'ALERTE'
               ? 'status-alert'
               : 'status-error'
-        } ${status === 'ALERTE' ? 'blink' : ''}`}>
+        } ${status === 'ALERTE' || status === 'CRITIQUE' ? 'blink' : ''}`}>
           {STATUS_LABELS[status] ?? status}
         </span>
       </div>
@@ -99,6 +101,7 @@ export default function MoldCard({ mold }) {
           <div className="text-xs text-slate-500 mb-0.5">Temperature</div>
           <div className={`text-3xl font-black tabular-nums leading-none ${
             status === 'ALERTE' ? 'text-red-400' :
+            status === 'CRITIQUE' ? 'text-red-600' :
             status === 'ERREUR' ? 'text-amber-400' : ''
           }`}
           style={status === 'OK' ? { color: 'var(--temp-normal)' } : {}}>
@@ -151,7 +154,7 @@ export default function MoldCard({ mold }) {
                 <Line
                   type="monotone"
                   dataKey="v"
-                  stroke={status === 'ALERTE' ? '#f87171' : '#818cf8'}
+                  stroke={status === 'ALERTE' || status === 'CRITIQUE' ? '#f87171' : '#818cf8'}
                   strokeWidth={1.5}
                   dot={false}
                   isAnimationActive={false}

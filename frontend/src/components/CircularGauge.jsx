@@ -10,9 +10,10 @@
 import React from 'react'
 
 const STATUS_COLORS = {
-  OK:     '#34d399',   // emerald
-  ALERTE: '#f87171',   // red
-  ERREUR: '#fbbf24',   // amber
+  OK:       '#34d399',   // emerald
+  ALERTE:   '#f87171',   // red
+  ERREUR:   '#fbbf24',   // amber
+  CRITIQUE: '#dc2626',   // dark red
 }
 
 export default function CircularGauge({ value, min = 35, max = 50, status = 'OK', size = 90 }) {

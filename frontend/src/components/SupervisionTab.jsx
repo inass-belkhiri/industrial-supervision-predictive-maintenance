@@ -14,7 +14,7 @@ const GROUP_NAMES = {
 }
 
 // Status priority for group badge
-const STATUS_PRIORITY = { ERREUR: 3, ALERTE: 2, OK: 1 }
+const STATUS_PRIORITY = { CRITIQUE: 4, ERREUR: 3, ALERTE: 2, OK: 1 }
 
 function GroupBadge({ sensors }) {
   const worst = sensors.reduce((acc, s) => {
@@ -22,12 +22,13 @@ function GroupBadge({ sensors }) {
   }, 'OK')
 
   const styles = {
-    OK:     'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-    ALERTE: 'bg-red-500/15 text-red-400 border-red-500/30',
-    ERREUR: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    OK:       'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    ALERTE:   'bg-red-500/15 text-red-400 border-red-500/30',
+    ERREUR:   'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    CRITIQUE: 'bg-red-700/20 text-red-300 border-red-700/40',
   }
 
-  const labels = { OK: 'Normal', ALERTE: 'Alerte', ERREUR: 'Erreur' }
+  const labels = { OK: 'Normal', ALERTE: 'Alerte', ERREUR: 'Erreur', CRITIQUE: 'Critique' }
 
   return (
     <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${styles[worst]}`}>
@@ -91,7 +92,7 @@ export default function SupervisionTab({ sensors = [] }) {
   }, [sensors])
 
   const totalAlerts = useMemo(
-    () => sensors.filter(s => s.status === 'ALERTE').length,
+    () => sensors.filter(s => s.status === 'ALERTE' || s.status === 'CRITIQUE').length,
     [sensors]
   )
 

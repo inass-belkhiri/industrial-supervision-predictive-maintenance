@@ -17,7 +17,9 @@ import config
 
 log = logging.getLogger(__name__)
 
-MODEL_DIR = 'models/ridge'
+_ML_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_ML_DIR)
+MODEL_DIR = os.path.join(_PROJECT_ROOT, 'models', 'ridge')
 
 
 class RidgePredictor:

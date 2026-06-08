@@ -386,6 +386,25 @@ async def _cycle():
     _eval_cycle_counter += 1
 
 
+# ── Safe JSON encoder ─────────────────────────────────────────────────────────
+class _SafeEncoder(json.JSONEncoder):
+    def default(self, o):
+        try:
+            if isinstance(o, (np.integer,)):
+                return int(o)
+            if isinstance(o, (np.floating,)):
+                return float(o)
+            if isinstance(o, np.ndarray):
+                return o.tolist()
+            if isinstance(o, np.bool_):
+                return bool(o)
+            if isinstance(o, (datetime,)):
+                return o.isoformat()
+            return super().default(o)
+        except TypeError:
+            return str(o)
+
+
 # ── Broadcast ─────────────────────────────────────────────────────────────────
 async def _broadcast_all():
     global ws_clients

@@ -19,6 +19,10 @@ if ROOT_DIR not in sys.path:
 import asyncio
 import json
 import logging
+from datetime import datetime, timedelta
+from typing import Dict, Tuple, List, Set
+from collections import deque
+import numpy as np
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -422,7 +426,6 @@ async def daily_retrain_loop():
             now      = datetime.now()
             next_run = now.replace(hour=config.RETRAIN_HOUR, minute=0, second=0, microsecond=0)
             if next_run <= now:
-                from datetime import timedelta
                 next_run = next_run + timedelta(days=1)
             await asyncio.sleep((next_run - now).total_seconds())
             await _retrain_all_ridge()

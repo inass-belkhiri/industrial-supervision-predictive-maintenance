@@ -372,19 +372,21 @@ async def _cycle():
         },
     }
 
-    # ENVOI D'ALERTE DIRECT — Telegram + Email (sans n8n)
-    if anomaly_result['anomaly_detected']:
-        worst_status = 'OK'
-        for s in latest_sensors:
-            st = s.get('status', 'OK')
+    # ENVOI D'ALERTE DIRECT — basé uniquement sur les seuils de température
+    worst_status = 'OK'
+    affected_molds = []
+    for s in latest_sensors:
+        st = s.get('status', 'OK')
+        if st in ('ALERTE', 'CRITIQUE'):
+            affected_molds.append(s['mold_id'])
             if st == 'CRITIQUE':
                 worst_status = 'CRITIQUE'
-                break
-            if st == 'ALERTE':
+            elif worst_status == 'OK':
                 worst_status = 'ALERTE'
-        severity_map = {'CRITIQUE': 'CRITICAL', 'ALERTE': 'WARNING', 'OK': 'WARNING'}
+
+    if worst_status in ('ALERTE', 'CRITIQUE'):
         alerting.send_alert(
-            severity=severity_map.get(worst_status, 'WARNING'),
+            severity={'CRITIQUE': 'CRITICAL', 'ALERTE': 'WARNING'}[worst_status],
             affected_molds=affected_molds,
             mold_readings=[s for s in latest_sensors if s['mold_id'] in affected_molds],
         )

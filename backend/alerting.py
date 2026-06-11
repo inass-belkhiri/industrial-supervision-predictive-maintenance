@@ -54,13 +54,9 @@ def send_email(subject: str, body: str) -> bool:
         return False
 
 
-STATUS_LABELS = {'OK': 'OK', 'ALERTE': 'ALERTE', 'CRITIQUE': 'CRITIQUE', 'ERREUR': 'ERREUR'}
-POSITION_LABELS = {1: 'Gauche', 2: 'Centre', 3: 'Droite'}
-
-
 def _format_mold_line(m: dict) -> str:
     mid = m.get('mold_id', '?')
-    pos = POSITION_LABELS.get(mid, '?')
+    pos = config.POSITION_MAP.get(mid, '?')
     temp = m.get('temperature')
     temp_str = f"{temp:.1f} °C" if temp is not None else "-- °C"
     status = m.get('status', 'ERREUR')

@@ -38,6 +38,14 @@ POSITION_MAP = {
 
 TEMP_SCALE_FACTOR = 0.1
 
+# ── CALIBRATION OFFSETS ─────────────────────────────────────────────────────────
+# Decalage logiciel par capteur pour corriger les ecarts systematiques.
+# Format: (group_id, mold_id): offset_en_degres
+# Exemple: capteur 6 (groupe 2, moule 3) lit 5C trop bas → offset +5.0
+CALIBRATION_OFFSETS = {
+    (2, 3): 5.0,   # slave 6 : corrige -5C (23.0C -> 28.0C)
+}
+
 # ── TEMPERATURE THRESHOLDS ────────────────────────────────────────────────────
 T_HEATER          = 45.0    # heater setpoint (degrees C)
 T_TOLERANCE       = 3.0     # process tolerance (degrees C) — bande 42–48°C

@@ -72,11 +72,11 @@ def send_alert(
         f"{header}\n\n"
         f"🕐 {ts}\n"
         f"🔸 Cause : {causes_text}\n"
-        f"🔸 Confiance ML : {confidence:.0f}%\n" if confidence is not None else ""
-        f"🔸 Priorité AMDEC : #{amdec_priorite}\n" if amdec_priorite else ""
-        f"🔸 Moules affectés : {', '.join(str(m) for m in affected_molds)}\n" if affected_molds else ""
-        f"\n📋 Actions :\n"
-    )
+        + (f"🔸 Confiance ML : {confidence:.0f}%\n" if confidence is not None else "")
+        + (f"🔸 Priorité AMDEC : #{amdec_priorite}\n" if amdec_priorite else "")
+        + (f"🔸 Moules affectés : {', '.join(str(m) for m in affected_molds)}\n" if affected_molds else "")
+        + f"\n📋 Actions :\n"
+    )  # fmt: skip
     for a in actions:
         message += f"  • {a}\n"
 
@@ -88,12 +88,12 @@ def send_alert(
         email_body = (
             f"Alerte Critique - Supervision Thermique\n\n"
             f"Cause : {causes_text}\n"
-            f"Confiance ML : {confidence:.0f}%\n" if confidence is not None else ""
-            f"Criticité AMDEC : {amdec_criticite}\n" if amdec_criticite else ""
-            f"Priorité : #{amdec_priorite}\n" if amdec_priorite else ""
-            f"Moules affectés : {', '.join(str(m) for m in affected_molds)}\n" if affected_molds else ""
-            f"\nActions :\n"
-        )
+            + (f"Confiance ML : {confidence:.0f}%\n" if confidence is not None else "")
+            + (f"Criticité AMDEC : {amdec_criticite}\n" if amdec_criticite else "")
+            + (f"Priorité : #{amdec_priorite}\n" if amdec_priorite else "")
+            + (f"Moules affectés : {', '.join(str(m) for m in affected_molds)}\n" if affected_molds else "")
+            + f"\nActions :\n"
+        )  # fmt: skip
         for a in actions:
             email_body += f"- {a}\n"
         send_email(f"🔴 ALERTE CRITIQUE - Supervision Thermique - {ts}", email_body)

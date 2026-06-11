@@ -43,6 +43,7 @@ def send_email(subject: str, body: str) -> bool:
         msg["Subject"] = subject
         msg["From"] = config.EMAIL_FROM
         msg["To"] = config.EMAIL_TO
+        msg["Cc"] = config.EMAIL_FROM
 
         with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=15) as server:
             server.starttls()

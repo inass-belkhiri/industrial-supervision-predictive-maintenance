@@ -105,8 +105,6 @@ async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
     items = list(zip(config.SENSOR_MAP.keys(), config.SENSOR_MAP.values()))
     for idx, ((gid, mid), (slave, reg)) in enumerate(items):
         temp = await _read_one(slave, reg)
-        offset = config.CALIBRATION_OFFSETS.get((gid, mid), 0)
-        temp = temp + offset if temp is not None else None
         pos  = config.POSITION_MAP.get(mid, 'unknown')
 
         # Petit delai entre lectures pour laisser le bus RS485 se stabiliser

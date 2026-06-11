@@ -318,7 +318,7 @@ async def _cycle():
 
     # Build sensor list
     sensor_list = []
-    for r in readings:
+    for sensor_idx, r in enumerate(readings, start=1):
         key = (r.group_id, r.mold_id)
         gb  = grey_results.get(key, {})
 
@@ -336,6 +336,7 @@ async def _cycle():
         entry = {
             'group_id':         r.group_id,
             'mold_id':          r.mold_id,
+            'global_idx':       sensor_idx,
             'position':         r.position,
             'temperature':      temp,
             'status':           status,
@@ -378,7 +379,7 @@ async def _cycle():
     for s in latest_sensors:
         st = s.get('status', 'OK')
         if st in ('ALERTE', 'CRITIQUE'):
-            affected_molds.append(s['mold_id'])
+            affected_molds.append(s.get('global_idx', s['mold_id']))
             if st == 'CRITIQUE':
                 worst_status = 'CRITIQUE'
             elif worst_status == 'OK':
@@ -388,7 +389,7 @@ async def _cycle():
         alerting.send_alert(
             severity={'CRITIQUE': 'CRITICAL', 'ALERTE': 'WARNING'}[worst_status],
             affected_molds=affected_molds,
-            mold_readings=[s for s in latest_sensors if s['mold_id'] in affected_molds],
+            mold_readings=[s for s in latest_sensors if s.get('global_idx', s['mold_id']) in affected_molds],
         )
 
     influx.write_sensors(readings, delta_T_map)

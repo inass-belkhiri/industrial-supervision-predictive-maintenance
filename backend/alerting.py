@@ -56,12 +56,12 @@ def send_email(subject: str, body: str) -> bool:
 
 
 def _format_mold_line(m: dict) -> str:
-    mid = m.get('mold_id', '?')
-    pos = config.POSITION_MAP.get(mid, '?')
+    idx = m.get('global_idx', m.get('mold_id', '?'))
+    pos = config.POSITION_MAP.get(m.get('mold_id'), '?')
     temp = m.get('temperature')
     temp_str = f"{temp:.1f} °C" if temp is not None else "-- °C"
     status = m.get('status', 'ERREUR')
-    return f"   Moule {mid} ({pos}) : {temp_str} [{status}]"
+    return f"   Moule {idx} ({pos}) : {temp_str} [{status}]"
 
 
 def send_alert(

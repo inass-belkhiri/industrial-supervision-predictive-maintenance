@@ -5,7 +5,7 @@
 import logging
 import smtplib
 from email.message import EmailMessage
-from typing import List, Optional
+from typing import List
 
 import requests
 
@@ -54,31 +54,37 @@ def send_email(subject: str, body: str) -> bool:
         return False
 
 
+STATUS_LABELS = {'OK': 'OK', 'ALERTE': 'ALERTE', 'CRITIQUE': 'CRITIQUE', 'ERREUR': 'ERREUR'}
+POSITION_LABELS = {1: 'Gauche', 2: 'Centre', 3: 'Droite'}
+
+
+def _format_mold_line(m: dict) -> str:
+    mid = m.get('mold_id', '?')
+    pos = POSITION_LABELS.get(mid, '?')
+    temp = m.get('temperature')
+    temp_str = f"{temp:.1f} °C" if temp is not None else "-- °C"
+    status = m.get('status', 'ERREUR')
+    return f"   Moule {mid} ({pos}) : {temp_str} [{status}]"
+
+
 def send_alert(
     severity: str,
-    cause: Optional[str],
-    confidence: Optional[float],
-    actions: List[str],
-    amdec_criticite: Optional[float],
-    amdec_priorite: Optional[int],
     affected_molds: List[int],
+    mold_readings: List[dict],
 ) -> None:
     ts = __import__("datetime").datetime.now().strftime("%d/%m/%Y %H:%M")
 
     header = f"{'🔴 *ALERTE CRITIQUE*' if severity == 'CRITICAL' else '⚠️ *Alerte Température*'}"
-    causes_text = cause or "Cause inconnue"
+    molds_str = ', '.join(str(m) for m in affected_molds) if affected_molds else '-'
+
+    temps_lines = '\n'.join(_format_mold_line(m) for m in mold_readings)
 
     message = (
         f"{header}\n\n"
         f"🕐 {ts}\n"
-        f"🔸 Cause : {causes_text}\n"
-        + (f"🔸 Confiance ML : {confidence:.0f}%\n" if confidence is not None else "")
-        + (f"🔸 Priorité AMDEC : #{amdec_priorite}\n" if amdec_priorite else "")
-        + (f"🔸 Moules affectés : {', '.join(str(m) for m in affected_molds)}\n" if affected_molds else "")
-        + f"\n📋 Actions :\n"
-    )  # fmt: skip
-    for a in actions:
-        message += f"  • {a}\n"
+        f"🔸 Moules affectés : {molds_str}\n"
+        + (f"\n🔸 Températures :\n{temps_lines}" if temps_lines else "")
+    )
 
     if severity == "WARNING":
         send_telegram(config.TELEGRAM_OPERATORS_ID, message)
@@ -87,13 +93,8 @@ def send_alert(
         send_telegram(config.TELEGRAM_CHEF_ID, message)
         email_body = (
             f"Alerte Critique - Supervision Thermique\n\n"
-            f"Cause : {causes_text}\n"
-            + (f"Confiance ML : {confidence:.0f}%\n" if confidence is not None else "")
-            + (f"Criticité AMDEC : {amdec_criticite}\n" if amdec_criticite else "")
-            + (f"Priorité : #{amdec_priorite}\n" if amdec_priorite else "")
-            + (f"Moules affectés : {', '.join(str(m) for m in affected_molds)}\n" if affected_molds else "")
-            + f"\nActions :\n"
-        )  # fmt: skip
-        for a in actions:
-            email_body += f"- {a}\n"
-        send_email(f"🔴 ALERTE CRITIQUE - Supervision Thermique - {ts}", email_body)
+            f"Date : {ts}\n"
+            f"Moules affectés : {molds_str}\n"
+            + (f"\nTempératures :\n{temps_lines}" if temps_lines else "")
+        )
+        send_email(f"ALERTE - Supervision Thermique - {ts}", email_body)

@@ -385,12 +385,8 @@ async def _cycle():
         severity_map = {'CRITIQUE': 'CRITICAL', 'ALERTE': 'WARNING', 'OK': 'WARNING'}
         alerting.send_alert(
             severity=severity_map.get(worst_status, 'WARNING'),
-            cause=cause_result.get('cause'),
-            confidence=cause_result.get('confidence'),
-            actions=cause_result.get('actions', []),
-            amdec_criticite=cause_result.get('amdec_criticite'),
-            amdec_priorite=cause_result.get('amdec_priorite'),
             affected_molds=affected_molds,
+            mold_readings=[s for s in latest_sensors if s['mold_id'] in affected_molds],
         )
 
     influx.write_sensors(readings, delta_T_map)

@@ -30,6 +30,7 @@ export function useWebSocket() {
     ws.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data)
+        if (parsed && parsed.t === 'ping') return
         setData(parsed)
       } catch (err) {
         console.error('WebSocket parse error:', err)

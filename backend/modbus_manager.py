@@ -59,7 +59,7 @@ async def init_modbus() -> bool:
     return connected
 
 
-async def _read_one(slave: int, register: int) -> Optional[float]:
+async def _read_one(slave: int, register: int, retry: bool = True) -> Optional[float]:
     """
     Read a single holding register and return the temperature in degrees C.
 
@@ -69,21 +69,24 @@ async def _read_one(slave: int, register: int) -> Optional[float]:
     """
     if _client is None or _bus_lock is None:
         return None
-    try:
-        async with _bus_lock:
-            result = await _client.read_holding_registers(
-                register, count=1, slave=slave
-            )
-        if result.isError():
-            return None
-        raw = result.registers[0]
-        return raw * config.TEMP_SCALE_FACTOR
-    except asyncio.InvalidStateError:
-        return None
-    except asyncio.TimeoutError:
-        return None
-    except (ModbusException, Exception):
-        return None
+    for attempt in range(2 if retry else 1):
+        try:
+            async with _bus_lock:
+                result = await _client.read_holding_registers(
+                    register, count=1, slave=slave
+                )
+            if result.isError():
+                log.warning("Sensor slave=%d reg=%d returned error", slave, register)
+                continue
+            raw = result.registers[0]
+            return raw * config.TEMP_SCALE_FACTOR
+        except asyncio.InvalidStateError:
+            log.warning("Sensor slave=%d reg=%d InvalidStateError (attempt %d)", slave, register, attempt + 1)
+        except asyncio.TimeoutError:
+            log.warning("Sensor slave=%d reg=%d TimeoutError (attempt %d)", slave, register, attempt + 1)
+        except (ModbusException, Exception) as exc:
+            log.warning("Sensor slave=%d reg=%d %s (attempt %d)", slave, register, type(exc).__name__, attempt + 1)
+    return None
 
 
 async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
@@ -99,12 +102,15 @@ async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
     now      = datetime.now().isoformat(timespec='seconds')
     readings = []
 
-    for (gid, mid), (slave, reg) in zip(
-        config.SENSOR_MAP.keys(),
-        config.SENSOR_MAP.values()
-    ):
+    items = list(zip(config.SENSOR_MAP.keys(), config.SENSOR_MAP.values()))
+    for idx, ((gid, mid), (slave, reg)) in enumerate(items):
         temp = await _read_one(slave, reg)
         pos  = config.POSITION_MAP.get(mid, 'unknown')
+
+        # Petit delai entre lectures pour laisser le bus RS485 se stabiliser
+        # (evite les reflexions electriques et les collisions)
+        if idx < len(items) - 1:
+            await asyncio.sleep(0.1)
 
         if temp is None:
             status    = 'ERREUR'

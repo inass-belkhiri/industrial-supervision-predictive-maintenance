@@ -104,6 +104,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(monitoring_loop())
     asyncio.create_task(daily_retrain_loop())
     asyncio.create_task(model_health_loop())
+    asyncio.create_task(ws_heartbeat_loop())
     log.info("Backend ready — port %d", config.WS_PORT)
     yield
     await modbus.close_modbus()
@@ -155,11 +156,27 @@ async def set_sim_mode(req: _ModeRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# ── WebSocket Heartbeat ────────────────────────────────────────────────────────────
+async def ws_heartbeat_loop():
+    """Silently check dead WS clients every 30s by sending a minimal keepalive."""
+    while True:
+        await asyncio.sleep(30)
+        dead = set()
+        for ws in list(ws_clients):
+            try:
+                await asyncio.wait_for(ws.send_text('{"t":"ping"}'), timeout=3.0)
+            except Exception:
+                dead.add(ws)
+        if dead:
+            ws_clients -= dead
+            log.info("WS heartbeat: purged %d dead client(s)", len(dead))
+
+
 # ── Monitoring loop ───────────────────────────────────────────────────────────
 async def monitoring_loop():
     while True:
         try:
-            await asyncio.wait_for(_cycle(), timeout=25.0)
+            await asyncio.wait_for(_cycle(), timeout=10.0)
         except asyncio.TimeoutError:
             log.error("Cycle timed out — tentative de reconnexion Modbus")
             await modbus.close_modbus()

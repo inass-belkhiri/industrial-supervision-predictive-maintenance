@@ -10,7 +10,8 @@ export default defineConfig({
     proxy: {
       '/ws': {
         target: 'http://localhost:8001',
-        ws: true
+        ws: true,
+        timeout: 5000
       }
     }
   }

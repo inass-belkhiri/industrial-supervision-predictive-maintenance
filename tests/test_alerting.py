@@ -55,30 +55,25 @@ def main():
     print(f"Pire statut      : {worst_status}")
     print("-" * 50)
 
+    severity_map = {'CRITIQUE': 'CRITICAL', 'ALERTE': 'WARNING', 'OK': 'WARNING'}
+
     if not affected:
         print("Aucun moule en dessous des seuils. Envoi d'un test WARNING.")
         alerting.send_alert(
             severity='WARNING',
-            cause='Modèles ML pas encore entraînés',
-            confidence=None,
-            actions=["Aucun moule en dessous des seuils - test uniquement"],
-            amdec_criticite=None,
-            amdec_priorite=None,
             affected_molds=[],
+            mold_readings=[],
         )
     else:
-        severity_map = {'CRITIQUE': 'CRITICAL', 'ALERTE': 'WARNING', 'OK': 'WARNING'}
+        mold_readings = [
+            {'mold_id': mid, 'position': config.POSITION_MAP.get(mid % 3 or 3, '?'),
+             'temperature': t, 'status': 'CRITIQUE' if t < config.T_MOLD_CRITICAL else 'ALERTE'}
+            for mid, t in sorted(temps.items())
+        ]
         alerting.send_alert(
             severity=severity_map.get(worst_status, 'WARNING'),
-            cause='Modèles ML pas encore entraînés',
-            confidence=None,
-            actions=[
-                "Test d'alerte - Modèles ML pas encore entraînés",
-                "Vérifier les température manuellement",
-            ],
-            amdec_criticite=None,
-            amdec_priorite=None,
             affected_molds=affected,
+            mold_readings=mold_readings,
         )
 
     print("\nTest envoyé - vérifie Telegram et Email")

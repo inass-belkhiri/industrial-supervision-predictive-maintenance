@@ -9,4 +9,5 @@ requests
 gpiozero==2.0
 rpi-ws281x==5.0.0
 pytest
+matplotlib>=3.8.0
 

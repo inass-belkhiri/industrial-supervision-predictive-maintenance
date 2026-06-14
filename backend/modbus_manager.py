@@ -96,7 +96,7 @@ async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
     FIX: replaced asyncio.gather with a plain for-loop.
     gather launched all coroutines concurrently; they piled up on the Lock
     and wait_for timeouts caused InvalidStateError races in pymodbus.
-    A sequential for-loop is correct, safe, and fast enough for <= 12 sensors
+    A sequential for-loop is correct, safe, and fast enough for <= 6 sensors
     at 9600 baud (each read takes ~100 ms max including timeout).
     """
     now      = datetime.now().isoformat(timespec='seconds')

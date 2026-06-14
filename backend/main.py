@@ -39,6 +39,7 @@ from anomaly_detector import AnomalyDetector
 from cause_classifier import CauseClassifier
 from ridge_predictor  import RidgePredictor
 from model_evaluator  import run_evaluation, should_retrain
+from data_sufficiency import get_retrain_mode, count_real_data_days
 
 logging.basicConfig(
     level  = logging.INFO,
@@ -474,6 +475,9 @@ async def daily_retrain_loop():
 async def _retrain_if_rf():
     log.info("Retraining Isolation Forest + Random Forest from InfluxDB data")
     try:
+        mode, threshold = get_retrain_mode()
+        log.info("Retrain mode: %s (threshold=%d days)", mode, threshold)
+
         raw = influx.query_recent(minutes=config.EVAL_WINDOW_MINUTES)
         from model_evaluator import build_feature_vectors, auto_label_anomaly, auto_label_cause
         features_if, features_rf = build_feature_vectors(raw)
@@ -482,30 +486,38 @@ async def _retrain_if_rf():
             return
 
         n_samples = max(len(raw.get('temperatures', [])), 50)
-        if features_if.shape[0] == 1:
+
+        if mode == 'real_only':
             X_if = features_if
-            for _ in range(max(n_samples // 10, 5)):
-                noise = np.random.randn(1, 8) * 0.05
-                X_if = np.vstack([X_if, features_if + noise])
         else:
-            X_if = features_if
+            if features_if.shape[0] == 1:
+                X_if = features_if
+                for _ in range(max(n_samples // 10, 5)):
+                    noise = np.random.randn(1, 8) * 0.05
+                    X_if = np.vstack([X_if, features_if + noise])
+            else:
+                X_if = features_if
+
         iso_forest.train(X_if)
-        log.info("Isolation Forest retrained on %d samples", len(X_if))
+        log.info("Isolation Forest retrained on %d samples (mode=%s)", len(X_if), mode)
 
         if features_rf is not None and raw.get('temperatures'):
-            X_rf_list, y_rf_list = [], []
             true_cause = auto_label_cause(raw)
             if true_cause:
-                if features_rf.shape[0] == 1:
+                if mode == 'real_only':
                     X_rf = features_rf
-                    for _ in range(max(n_samples // 10, 5)):
-                        noise = np.random.randn(1, 10) * 0.05
-                        X_rf = np.vstack([X_rf, features_rf + noise])
                 else:
-                    X_rf = features_rf
+                    if features_rf.shape[0] == 1:
+                        X_rf = features_rf
+                        for _ in range(max(n_samples // 10, 5)):
+                            noise = np.random.randn(1, 10) * 0.05
+                            X_rf = np.vstack([X_rf, features_rf + noise])
+                    else:
+                        X_rf = features_rf
                 y_list = [true_cause] * len(X_rf)
                 rf.train(X_rf, y_list)
-                log.info("Random Forest retrained on %d samples, cause: %s", len(X_rf), true_cause)
+                log.info("Random Forest retrained on %d samples, cause: %s (mode=%s)",
+                         len(X_rf), true_cause, mode)
     except Exception as exc:
         log.error("Retrain IF/RF failed: %s", exc, exc_info=True)
 
@@ -519,6 +531,10 @@ async def _retrain_all_ridge():
         await asyncio.sleep(1.0)
     else:
         log.warning("Ridge retraining: no sensor data yet, proceeding anyway")
+
+    mode, threshold = get_retrain_mode()
+    log.info("Ridge retrain mode: %s (threshold=%d days)", mode, threshold)
+
     try:
         maintenance_list = []
 
@@ -550,13 +566,24 @@ async def _retrain_all_ridge():
                 'urgence':         sensor.get('urgence', 'OK'),
                 'degradation_pct': sensor.get('degradation_pct', 0),
                 'history_chart':   history_chart,
+                'predictor':       predictor,
             }
             if result:
                 entry.update(result)
             maintenance_list.append(entry)
 
-        latest_maintenance = maintenance_list
-        log.info("Ridge retraining done — %d molds", len(maintenance_list))
+        latest_maintenance = [
+            {k: v for k, v in e.items() if k != 'predictor'}
+            for e in maintenance_list
+        ]
+
+        try:
+            from plots_evaluation import generate_all_plots
+            generate_all_plots(maintenance_list=maintenance_list)
+        except Exception as plot_exc:
+            log.warning("Could not generate plots: %s", plot_exc)
+
+        log.info("Ridge retraining done — %d molds (mode=%s)", len(maintenance_list), mode)
     except Exception as exc:
         log.error("Ridge retraining failed: %s", exc, exc_info=True)
         latest_maintenance = []

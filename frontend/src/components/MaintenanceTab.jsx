@@ -434,18 +434,20 @@ export default function MaintenanceTab({ maintenance = [] }) {
   const [selectedMold, setSelectedMold] = React.useState(null)
   const calendarMold = selectedMold ?? mostUrgent
 
+  // Un seul debimetre installe sur Heater 1 / Moule 1
   const groups = useMemo(() => {
-    const map = { 1:[], 2:[], 3:[], 4:[] }
+    const map = {}
     if (!maintenance.length) {
-      const pos = ['gauche','centre','droite']
-      ;[1,2,3,4].forEach(gid =>
-        pos.forEach((p, j) => map[gid].push({
-          mold_id: gid*3-2+j, group_id: gid, position: p, urgence: 'OK', degradation_pct: 0,
-        }))
-      )
+      map[1] = [{
+        mold_id: 1, group_id: 1, position: 'gauche',
+        urgence: 'OK', degradation_pct: 0,
+      }]
       return map
     }
-    maintenance.forEach(m => { if (map[m.group_id]) map[m.group_id].push(m) })
+    maintenance.forEach(m => {
+      if (!map[m.group_id]) map[m.group_id] = []
+      map[m.group_id].push(m)
+    })
     return map
   }, [maintenance])
 
@@ -462,7 +464,7 @@ export default function MaintenanceTab({ maintenance = [] }) {
         {[
           { label: 'Modèle',              value: 'Grey-box + Ridge + Bootstrap',  color: 'var(--text-primary)' },
           { label: 'Intervalle IC',        value: '90% (percentiles 5-95)',        color: 'var(--text-primary)' },
-          { label: 'Moules à maintenir',  value: `${criticalCount} / ${maintenance.length || 12}`, color: '#f97316' },
+          { label: 'Moules à maintenir',  value: `${criticalCount} / ${maintenance.length || 1}`, color: '#f97316' },
         ].map(item => (
           <div key={item.label}>
             <div style={{
@@ -481,12 +483,12 @@ export default function MaintenanceTab({ maintenance = [] }) {
       {/* Layout principal */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:8, alignItems:'start' }}>
 
-        {/* LEFT — 2×2 heater groups */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-          {[1,2,3,4].map(gid => (
+        {/* LEFT — 1 seul groupe (Heater 1 / Moule 1) */}
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {Object.keys(groups).map(gid => (
             <HeaterGroup
               key={gid}
-              groupId={gid}
+              groupId={+gid}
               molds={groups[gid] ?? []}
               selectedId={calendarMold?.mold_id}
               onSelect={m => setSelectedMold(prev =>

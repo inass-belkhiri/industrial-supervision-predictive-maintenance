@@ -38,6 +38,7 @@ def parse_args():
     parser.add_argument('--step',  type=int, default=30, help='Window step in seconds (default: 30)')
     parser.add_argument('--window', type=int, default=30, help='Window size in seconds (default: 30)')
     parser.add_argument('--eval', action='store_true', help='Split train/test and report metrics')
+    parser.add_argument('--plots', action='store_true', help='Generate evaluation plots (t-SNE, ROC, histogram, etc.)')
     return parser.parse_args()
 
 
@@ -439,6 +440,31 @@ def main():
         results.update(eval_results)
 
     save_report(results)
+
+    # 6. Generate plots (optional)
+    if args.plots:
+        try:
+            from plots_evaluation import generate_all_plots
+            from anomaly_detector import AnomalyDetector
+            from cause_classifier import CauseClassifier
+
+            X_if = np.vstack(if_features)
+            X_rf = np.vstack(rf_features)
+
+            iso = AnomalyDetector()
+            rfc = CauseClassifier()
+
+            generate_all_plots(
+                iso_model=iso,
+                rf_model=rfc,
+                features_if=X_if,
+                features_rf=X_rf,
+                labels_rf=labels,
+                pseudo_labels_if=np.array([1 if l != 'NORMAL' else 0 for l in labels]),
+            )
+            log.info("Plots generated in models/plots/")
+        except Exception as plot_exc:
+            log.warning("Could not generate plots: %s", plot_exc)
 
     log.info("Done — models saved to backend/models/")
     log.info("Restart the backend to load the new models.")

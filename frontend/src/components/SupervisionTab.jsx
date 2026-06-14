@@ -1,7 +1,8 @@
 // SupervisionTab.jsx
-// Renders 4 heater groups, each with 3 mold cards.
+// Renders 4 heater groups with dynamic mold card count per group:
+//   Heater 1 → 1 mold, Heater 2 → 2 molds, Heater 3 → 2 molds, Heater 4 → 1 mold
 // Groups are laid out side by side in a 4-column grid.
-// No horizontal scrollbar — all 12 cards visible at once.
+// Card count adapts automatically based on backend sensor data.
 
 import React, { useMemo } from 'react'
 import MoldCard from './MoldCard'
@@ -116,7 +117,7 @@ export default function SupervisionTab({ sensors = [] }) {
           </div>
         )}
         <div className="ml-auto text-xs text-slate-600">
-          Acquisition : 1 Hz -- 12 capteurs MODBUS RTU RS485
+          Acquisition : 1 Hz -- 6 capteurs MODBUS RTU RS485
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import sys
 import os
+import random
 import asyncio
 import logging
 
@@ -39,6 +40,18 @@ MODE_LABEL = {
 }
 
 
+def _generate_flow(mode: str, call_idx: int) -> float:
+    if mode == 'PUMP_FAIL':
+        val = 2.0 + random.gauss(0, 0.3)
+    elif mode == 'NOISY':
+        val = config.FLOW_DEFAULT_LPM + random.gauss(0, 3.0)
+    elif mode == 'GRADUAL_DROP':
+        val = config.FLOW_DEFAULT_LPM - call_idx * 0.02 + random.gauss(0, 0.3)
+    else:
+        val = config.FLOW_DEFAULT_LPM + random.gauss(0, 0.3)
+    return max(0, val)
+
+
 async def collect_normal():
     iso_extractor = AnomalyDetector()
     temp_history = {}
@@ -59,11 +72,11 @@ async def collect_normal():
                 if len(temp_history[key]) > 3600:
                     temp_history[key] = temp_history[key][-3600:]
 
-        flow = config.FLOW_DEFAULT_LPM
-        for gid in [1, 2, 3, 4]:
+        flow_val = _generate_flow('NORMAL', call)
+        for gid in config.FLOW_SENSOR_PINS:
             if gid not in flow_history:
                 flow_history[gid] = []
-            flow_history[gid].append(flow)
+            flow_history[gid].append(flow_val)
             if len(flow_history[gid]) > 3600:
                 flow_history[gid] = flow_history[gid][-3600:]
 
@@ -122,11 +135,11 @@ async def collect_all_for_rf():
                     if len(temp_history[key]) > 3600:
                         temp_history[key] = temp_history[key][-3600:]
 
-            flow = config.FLOW_DEFAULT_LPM
-            for gid in [1, 2, 3, 4]:
+            flow_val = _generate_flow(mode, call)
+            for gid in config.FLOW_SENSOR_PINS:
                 if gid not in flow_history:
                     flow_history[gid] = []
-                flow_history[gid].append(flow)
+                flow_history[gid].append(flow_val)
                 if len(flow_history[gid]) > 3600:
                     flow_history[gid] = flow_history[gid][-3600:]
 

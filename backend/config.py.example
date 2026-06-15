@@ -12,28 +12,22 @@ MODBUS_STOPBITS  = 1
 MODBUS_BYTESIZE  = 8
 MODBUS_TIMEOUT   = 1       # seconds (reduit pour eviter timeouts en cascade sur le bus RS485)
 
-# MODBUS slave addresses for the 12 temperature sensors
-# Format: { mold_key: (slave_address, register_address) }
+# Addresses MODBUS des 6 capteurs de temperature
+# Format: { (group_id, mold_id): (slave_address, register_address) }
+# Heater 1 → 1 moule, Heater 2 → 2 moules, Heater 3 → 2 moules, Heater 4 → 1 moule
 SENSOR_MAP = {
-    (1, 1): (1, 0),
-    (1, 2): (2, 0),
-    (1, 3): (3, 0),
-    (2, 1): (4, 0),
-    (2, 2): (5, 0),
-    (2, 3): (6, 0),
-    (3, 1): (7, 0),
-    (3, 2): (8, 0),
-    (3, 3): (9, 0),
-    (4, 1): (10, 0),
-    (4, 2): (11, 0),
-    (4, 3): (12, 0),
+    (1, 1): (1, 0),   # Heater 1 — moule 1 (gauche)
+    (2, 1): (2, 0),   # Heater 2 — moule 1 (gauche)
+    (2, 2): (3, 0),   # Heater 2 — moule 2 (centre)
+    (3, 1): (4, 0),   # Heater 3 — moule 1 (gauche)
+    (3, 2): (5, 0),   # Heater 3 — moule 2 (centre)
+    (4, 1): (7, 0),   # Heater 4 — moule 1 (gauche)
 }
 
 # Position labels per mold_id within a group
 POSITION_MAP = {
     1: 'gauche',
     2: 'centre',
-    3: 'droite',
 }
 
 TEMP_SCALE_FACTOR = 0.1
@@ -41,9 +35,7 @@ TEMP_SCALE_FACTOR = 0.1
 # ── CALIBRATION OFFSETS ─────────────────────────────────────────────────────────
 # Decalage logiciel par capteur pour corriger les ecarts systematiques.
 # Format: (group_id, mold_id): offset_en_degres
-# Exemple: capteur 6 (groupe 2, moule 3) lit 5C trop bas → offset +5.0
 CALIBRATION_OFFSETS = {
-    (2, 3): 5.0,   # slave 6 : corrige -5C (23.0C -> 28.0C)
 }
 
 # ── TEMPERATURE THRESHOLDS ────────────────────────────────────────────────────
@@ -71,14 +63,12 @@ SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', 'YOUR_APP_PASSWORD')
 EMAIL_FROM    = os.getenv('EMAIL_FROM',    'YOUR_EMAIL@gmail.com')
 EMAIL_TO      = os.getenv('EMAIL_TO',      'chef.equipe@example.ma')
 
-# ── FLOW SENSORS (YF-S201 Hall Effect, 1 per heater group) ─────────────────────
+# ── FLOW SENSOR (YF-S201 Hall Effect, only on Heater 1) ───────────────────────
+# Un seul debimetre installe sur le heater 1 (lie a un seul moule).
 # Wiring: Red=5V, Black=GND, Yellow=Signal (GPIO)
 # Formula: Flow Rate (L/min) = Frequency (Hz) / 7.5
 FLOW_SENSOR_PINS = {
-    1: 17,  # Heater 1
-    2: 18,  # Heater 2
-    3: 22,  # Heater 3
-    4: 23,  # Heater 4
+    1: 17,  # Heater 1 (seul heater avec debitmetre)
 }
 FLOW_DEFAULT_LPM     = 16.5       # Fallback if sensor fails
 YF_S201_PULSE_FACTOR = 7.5        # Pulses per Liter/minute
@@ -87,7 +77,7 @@ YF_S201_PULSE_FACTOR = 7.5        # Pulses per Liter/minute
 PIPE_DIAMETER    = 0.013    # m  (13 mm)
 PIPE_LENGTH      = 3.0      # m
 LAMBDA_CALCAIRE  = 1.0      # W/(m.K)
-N_MOLDS          = 12
+N_MOLDS          = 6
 RHO_WATER        = 1000.0   # kg/m3
 CP_WATER         = 4186.0   # J/(kg.K)
 
@@ -95,7 +85,8 @@ CP_WATER         = 4186.0   # J/(kg.K)
 FEATURE_WINDOW_SECONDS  = 30
 RIDGE_MIN_DAYS          = 7
 BOOTSTRAP_N             = 1000
-RETRAIN_HOUR            = 2
+RETRAIN_HOUR            = 5
+FORCE_REAL_ONLY         = False                 # True apres seuil J (donnees reelles uniquement)
 
 # ── WEBSOCKET ─────────────────────────────────────────────────────────────────
 WS_HOST           = '0.0.0.0'

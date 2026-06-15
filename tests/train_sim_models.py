@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(ROOT, 'ml'))
 os.chdir(os.path.join(ROOT, 'tests'))
 
 import config
+import data_generator
 import modbus_simulator
 from anomaly_detector import AnomalyDetector
 from cause_classifier import CauseClassifier
@@ -87,7 +88,7 @@ async def collect_normal():
         for r in readings:
             key = (r.group_id, r.mold_id)
             if r.temperature is not None:
-                delta_T_map[key] = max(0, config.T_HEATER - r.temperature - 1.0)
+                delta_T_map[key] = max(0, config.T_HEATER - r.temperature - data_generator.DELTA_T_HEURISTIC)
 
         feat_8d = iso_extractor.extract_features(temp_history, flow_history, delta_T_map)
         if feat_8d is None:
@@ -150,7 +151,7 @@ async def collect_all_for_rf():
             for r in readings:
                 key = (r.group_id, r.mold_id)
                 if r.temperature is not None:
-                    delta_T_map[key] = max(0, config.T_HEATER - r.temperature - 1.0)
+                    delta_T_map[key] = max(0, config.T_HEATER - r.temperature - data_generator.DELTA_T_HEURISTIC)
 
             feat_8d = iso_extractor.extract_features(temp_history, flow_history, delta_T_map)
             if feat_8d is None:

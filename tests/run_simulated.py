@@ -31,6 +31,15 @@ flow_simulator.patch_flow_sensor()
 import config
 config.MODBUS_PORT = '/dev/ttySIMULATED'
 
+# ── Seed InfluxDB with synthetic historical data ──────────────────────────────
+try:
+    log.info("Seeding InfluxDB with 60 days of synthetic data...")
+    import data_generator
+    data_generator.inject_historical_data()
+    log.info("Historical data injected — Ridge will have data for maintenance predictions")
+except Exception as exc:
+    log.warning("Could not seed historical data: %s", exc)
+
 # ── Start backend ──────────────────────────────────────────────────────────────
 
 import uvicorn

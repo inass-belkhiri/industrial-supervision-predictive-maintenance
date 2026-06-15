@@ -31,7 +31,6 @@ GROUP_TEMP_OFFSET = {
 MOLD_POSITION_OFFSET = {
     1: -0.1,
     2: +0.3,
-    3: -0.2,
 }
 
 # ── Encrassement drift rate per group (°C/day, after day 20) ─────────────────
@@ -47,6 +46,8 @@ ENCRASSEMENT_DRIFT = {
 DAILY_CYCLE_AMPLITUDE = 0.4
 # Phase offset so minimum is at ~5h, maximum at ~14h
 DAILY_CYCLE_PHASE = 0.21
+
+DELTA_T_HEURISTIC = 1.0  # used also in train_sim_models.py
 
 # ── Localized defect probability per day ──────────────────────────────────────
 LOCAL_DEFECT_PROB = 0.10
@@ -157,7 +158,7 @@ def generate_flow_rate(day_offset: int, scenario: dict, group_id: int) -> float:
     if flow_mean < 5.0:
         val = flow_mean + random.gauss(0, flow_std)
     else:
-        val = base * (flow_mean / 16.5) + random.gauss(0, flow_std)
+        val = base * (flow_mean / config.FLOW_DEFAULT_LPM) + random.gauss(0, flow_std)
     if group_id == 3 and day_offset > 20:
         val *= 0.6
     return round(max(0, val), 2)
@@ -198,7 +199,7 @@ def inject_historical_data():
                     .field("temperature",     t)
                     .field("threshold",       config.T_HEATER)
                     .field("deviation",       deviation)
-                    .field("delta_T_calcaire", max(0, round(config.T_HEATER - t - 1.0, 4)))
+                    .field("delta_T_calcaire", max(0, round(config.T_HEATER - t - DELTA_T_HEURISTIC, 4)))
                 )
                 try:
                     influx._write_api.write(

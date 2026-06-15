@@ -121,9 +121,9 @@ def generate_daily_temperature(
     mold_offset   = MOLD_POSITION_OFFSET.get(mold_id, 0.0)
     drift         = 0.0
     if day_offset > 20:
-        drift = ENCRASSEMENT_DRIFT.get(group_id, -0.02) * (day_offset - 20)
+        max_drift = ENCRASSEMENT_DRIFT.get(group_id, -0.02) * (N_DAYS - 20)
+        drift = max_drift * (1 - math.exp(-0.05 * (day_offset - 20)))
 
-    # Determine if a localized defect occurs today
     defect_mold = None
     defect_duration = 0
     defect_drop = 0.0
@@ -133,14 +133,21 @@ def generate_daily_temperature(
         defect_drop = random.uniform(*LOCAL_DEFECT_DROP_RANGE)
 
     records = []
+    prev_temp = None
     for minute in range(0, 1440, 5):
         cycle = daily_cycle_offset(minute)
-        # Apply negative offset for critique scenario
         scenario_offset = -3.0 if chosen == 'critique' else 0.0
-        t = config.T_HEATER + group_offset + mold_offset + cycle + drift + scenario_offset
-        t += random.gauss(0, scenario['T_std'])
+        if chosen == 'critique' and minute > 360:
+            scenario_offset -= 0.004 * (minute - 360)
 
-        # Apply localized defect for this mold
+        target = config.T_HEATER + group_offset + mold_offset + cycle + drift + scenario_offset
+
+        if prev_temp is None:
+            prev_temp = target + random.gauss(0, 0.08)
+        else:
+            prev_temp = 0.97 * prev_temp + 0.03 * target + random.gauss(0, 0.08)
+        t = prev_temp
+
         if mold_id == defect_mold and minute < defect_duration * 5:
             t -= defect_drop
 
@@ -151,7 +158,7 @@ def generate_daily_temperature(
     return records
 
 
-def generate_flow_rate(day_offset: int, scenario: dict, group_id: int) -> float:
+def generate_flow_rate(day_offset: int, scenario: dict, group_id: int, scenario_name: str = 'normal') -> float:
     base = GROUP_FLOW_BASELINE.get(group_id, config.FLOW_DEFAULT_LPM)
     flow_mean = scenario['flow_mean']
     flow_std  = scenario['flow_std']
@@ -159,6 +166,8 @@ def generate_flow_rate(day_offset: int, scenario: dict, group_id: int) -> float:
         val = flow_mean + random.gauss(0, flow_std)
     else:
         val = base * (flow_mean / config.FLOW_DEFAULT_LPM) + random.gauss(0, flow_std)
+    if scenario_name == 'pompe_hs' and group_id != 1:
+        val *= 0.85
     if group_id == 3 and day_offset > 20:
         val *= 0.6
     return round(max(0, val), 2)
@@ -169,8 +178,11 @@ def inject_historical_data():
     influx.init_influxdb()
 
     from influxdb_client import Point
+    from grey_box import GreyBoxModel
+    grey = GreyBoxModel()
 
     total_points = 0
+    calibration_done = set()
 
     for day in range(N_DAYS):
         timestamp = datetime.now() - timedelta(days=N_DAYS - day)
@@ -179,6 +191,7 @@ def inject_historical_data():
 
         for (gid, mid), (slave, reg) in config.SENSOR_MAP.items():
             temps = generate_daily_temperature(day, gid, mid, scenario, scenario_name)
+            g_flow = generate_flow_rate(day, scenario, gid, scenario_name)
             for rec in temps:
                 t = rec['temperature']
                 if t < config.T_MOLD_CRITICAL:
@@ -190,6 +203,12 @@ def inject_historical_data():
                 deviation = round(t - config.T_HEATER, 3)
                 ts = timestamp + timedelta(minutes=rec['minute'])
 
+                if (gid, mid) not in calibration_done:
+                    grey.set_calibration(gid, mid, t)
+                    calibration_done.add((gid, mid))
+
+                gb = grey.compute(gid, mid, t, g_flow)
+
                 p = (
                     Point("temperature")
                     .tag("mold_id",   str(mid))
@@ -199,7 +218,8 @@ def inject_historical_data():
                     .field("temperature",     t)
                     .field("threshold",       config.T_HEATER)
                     .field("deviation",       deviation)
-                    .field("delta_T_calcaire", max(0, round(config.T_HEATER - t - DELTA_T_HEURISTIC, 4)))
+                    .field("delta_T_calcaire", gb['delta_T_calcaire'])
+                    .field("epaisseur_mm", gb['epaisseur_mm'])
                 )
                 try:
                     influx._write_api.write(
@@ -212,7 +232,7 @@ def inject_historical_data():
                     log.warning("Write error day %d mold (%d,%d): %s", day, gid, mid, e)
 
         for gid in config.FLOW_SENSOR_PINS:
-            flow_val = generate_flow_rate(day, scenario, gid)
+            flow_val = generate_flow_rate(day, scenario, gid, scenario_name)
             ts = timestamp + timedelta(hours=12)
             p = (
                 Point("flow")

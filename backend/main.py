@@ -298,9 +298,7 @@ async def _cycle():
                 flow_drop=flow_drop,
                 temp_heater=temp_heater,
             )
-            cause_result = rule_result if rule_result else (
-                rf.predict(rf_features) if rf.trained else cause_result
-            )
+            cause_result = rule_result if rule_result else rf.predict(rf_features)
 
             # ENRICHISSEMENT AMDEC (NOUVEAU)
             cause = cause_result.get('cause')

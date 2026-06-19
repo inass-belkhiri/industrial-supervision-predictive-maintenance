@@ -83,16 +83,16 @@ class CauseClassifier:
                 'method':     'physical_rule',
             }
 
-        # Pump failure: sudden global drop + flow collapse
-        if affected_ratio > 0.8 and sudden_drop and flow_drop:
+        # Pump failure: flow collapse (very low but not zero), all molds affected
+        if affected_ratio > 0.8 and flow_drop:
             return {
                 'cause':      'HEATER_POMPE_HS',
                 'confidence': 1.0,
                 'method':     'physical_rule',
             }
 
-        # Low water level / valve issue: many molds affected, flow very low but not zero
-        if affected_ratio > 0.7 and flow_rate < 0.3 * nominal_flow and not sudden_drop:
+        # Low water level / valve issue: many molds affected, zero flow
+        if affected_ratio > 0.7 and flow_rate < 0.5:
             return {
                 'cause':      'NIVEAU_BAS_VANNE_PANNE',
                 'confidence': 1.0,
@@ -185,9 +185,9 @@ class CauseClassifier:
         """
         if temp_heater < 44.0 and affected_ratio > 0.8:
             return 'HEATER_RESISTANCE_HS'
-        if affected_ratio > 0.8 and sudden_drop and flow_drop:
+        if affected_ratio > 0.8 and flow_drop:
             return 'HEATER_POMPE_HS'
-        if affected_ratio > 0.7 and flow_rate < 0.3 * nominal_flow:
+        if affected_ratio > 0.7 and flow_rate < 0.5:
             return 'NIVEAU_BAS_VANNE_PANNE'
         if variance > variance_threshold and R_squared < 0.3 and affected_ratio < 0.4:
             return 'BULLES_AIR'

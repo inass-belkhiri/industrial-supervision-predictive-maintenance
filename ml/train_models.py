@@ -293,8 +293,13 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
     return if_features_list, rf_features_list, labels_list
 
 
-def train_isolation_forest(if_features):
-    """Train Isolation Forest on 8D feature vectors."""
+def train_isolation_forest(if_features, labels=None):
+    """Train Isolation Forest on 8D feature vectors (normal samples only)."""
+    if labels is not None:
+        normal_mask = [l == 'NORMAL' for l in labels]
+        if_features = [f for f, m in zip(if_features, normal_mask) if m]
+        n_dropped = sum(not m for m in normal_mask)
+        log.info("Filtered to %d normal samples (dropped %d anomalous)", len(if_features), n_dropped)
     log.info("Training Isolation Forest on %d samples...", len(if_features))
     X = np.vstack(if_features)
     iso = AnomalyDetector()
@@ -420,8 +425,8 @@ def main():
         log.error("Too few windows (%d) — need at least 100", len(if_features))
         sys.exit(1)
 
-    # 3. Train Isolation Forest
-    train_isolation_forest(if_features)
+    # 3. Train Isolation Forest (normal samples only)
+    train_isolation_forest(if_features, labels)
 
     # 4. Train Random Forest
     train_random_forest(rf_features, labels)

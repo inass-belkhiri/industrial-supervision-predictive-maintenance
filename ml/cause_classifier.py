@@ -188,7 +188,7 @@ class CauseClassifier:
             return 'ISOLATION_DEGRADEE'
         # Si aucune condition : on pourrait retourner la classe la plus probable
         # ou lever une exception, selon le contexte d'utilisation
-        return 'FUITE_CIRCUIT'  # Classe par défaut pour cas ambigus
+        return 'NORMAL'  # Aucune anomalie détectée
 
     # ── Persistence ──────────────────────────────────────────────────────────
 

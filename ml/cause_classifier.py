@@ -109,17 +109,26 @@ class CauseClassifier:
         Returns { cause, confidence, proba_dict, method }.
         """
         if not self.trained or self.model is None:
-            return {'cause': 'NORMAL', 'confidence': 1.0, 'method': 'default', 'proba_dict': {}}
+            return {'cause': 'CAUSE_INDETERMINEE', 'confidence': 0.0, 'method': 'default', 'proba_dict': {}}
 
         proba  = self.model.predict_proba(features)[0]
         idx    = int(np.argmax(proba))
         cause  = self.encoder.inverse_transform([idx])[0]
 
+        max_prob = float(round(float(proba[idx]), 3))
         proba_dict = {cls: float(round(p, 3)) for cls, p in zip(self.encoder.classes_, proba)}
+
+        if max_prob < config.RF_CONFIDENCE_THRESHOLD:
+            return {
+                'cause': 'CAUSE_INDETERMINEE',
+                'confidence': max_prob,
+                'proba_dict': proba_dict,
+                'method': 'low_confidence',
+            }
 
         return {
             'cause':      cause,
-            'confidence': float(round(float(proba[idx]), 3)),
+            'confidence': max_prob,
             'proba_dict': proba_dict,
             'method':     'random_forest',
         }

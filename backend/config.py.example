@@ -204,3 +204,4 @@ EVAL_WINDOW_MINUTES  = 30       # sliding window for feature extraction
 EVAL_PERSISTENCE     = 3        # consecutive bad evaluations before retrain
 IF_ANOMALY_RATE_MAX  = 0.15     # max acceptable anomaly rate before retrain
 RF_F1_WEIGHTED_MIN   = 0.75     # min acceptable F1-weighted before retrain
+RF_CONFIDENCE_THRESHOLD = 0.5   # min confidence to accept an RF prediction; below = cause indeterminee

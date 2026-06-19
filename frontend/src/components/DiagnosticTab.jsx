@@ -90,6 +90,7 @@ const CAUSE_LABELS = {
   BULLES_AIR:                'Bulles d\'air dans le circuit',
   FUITE_CIRCUIT:             'Fuite sur le circuit hydraulique',
   ISOLATION_DEGRADEE:        'Isolation thermique degradee',
+  CAUSE_INDETERMINEE:        'Cause indeterminee',
 }
 
 const CAUSE_COLORS = {
@@ -100,6 +101,7 @@ const CAUSE_COLORS = {
   BULLES_AIR:                '#60a5fa',  // blue
   FUITE_CIRCUIT:             '#f97316',  // orange
   ISOLATION_DEGRADEE:        '#a78bfa',  // light purple
+  CAUSE_INDETERMINEE:        '#94a3b8',  // neutral gray
 }
 
 const CAUSE_ACTIONS = {
@@ -141,6 +143,12 @@ const CAUSE_ACTIONS = {
   ],
   ISOLATION_DEGRADEE: [
     'Inspecter isolation moule visuellement',
+  ],
+  CAUSE_INDETERMINEE: [
+    'Verifier l\'etat des capteurs de temperature',
+    'Analyser les donnees supplementaires (pression, débit)',
+    'Contacter le service maintenance pour diagnostic manuel',
+    'Surveiller l\'evolution de la situation',
   ],
 }
 

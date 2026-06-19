@@ -30,6 +30,16 @@ POSITION_MAP = {
     2: 'centre',
 }
 
+# Mold nomenclature for display in UI and alerts
+MOLD_NOMENCLATURE = {
+    (1, 1): 'RBA_178 #03',
+    (2, 1): 'RBA_178 #01',
+    (2, 2): 'RBA_178 #02',
+    (3, 1): 'RBA_174 #02',
+    (3, 2): 'RBA_174 #06',
+    (4, 1): 'RBA_174 #08',
+}
+
 TEMP_SCALE_FACTOR = 0.1
 
 # ── CALIBRATION OFFSETS ─────────────────────────────────────────────────────────

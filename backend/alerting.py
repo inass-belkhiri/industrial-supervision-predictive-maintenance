@@ -58,10 +58,12 @@ def send_email(subject: str, body: str) -> bool:
 def _format_mold_line(m: dict) -> str:
     idx = m.get('global_idx', m.get('mold_id', '?'))
     pos = config.POSITION_MAP.get(m.get('mold_id'), '?')
+    nomenclature = m.get('nomenclature', '') or config.MOLD_NOMENCLATURE.get((m.get('group_id'), m.get('mold_id')), '')
     temp = m.get('temperature')
     temp_str = f"{temp:.1f} °C" if temp is not None else "-- °C"
     status = m.get('status', 'ERREUR')
-    return f"   Moule {idx} ({pos}) : {temp_str} [{status}]"
+    name_part = f" [{nomenclature}]" if nomenclature else ""
+    return f"   Moule {idx}{name_part} ({pos}) : {temp_str} [{status}]"
 
 
 def send_alert(

@@ -36,6 +36,7 @@ export default function MoldCard({ mold }) {
     mold_id,
     group_id,
     position,
+    nomenclature,
     temperature,
     status,
     history = [],
@@ -80,6 +81,11 @@ export default function MoldCard({ mold }) {
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Moule {mold_id}
           </span>
+          {nomenclature && (
+            <span className="text-xs font-mono text-indigo-400 ml-2">
+              {nomenclature}
+            </span>
+          )}
           <div className="text-xs text-slate-500 mt-0.5">
             {POSITION_LABELS[position] ?? position}
           </div>

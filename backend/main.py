@@ -342,6 +342,7 @@ async def _cycle():
             'threshold':        r.threshold,
             'deviation':        dev,
             'timestamp':        r.timestamp,
+            'nomenclature':     config.MOLD_NOMENCLATURE.get((r.group_id, r.mold_id), ''),
             'epaisseur_mm':     gb.get('epaisseur_mm'),
             'delta_T_calcaire': gb.get('delta_T_calcaire'),
             'urgence':          gb.get('urgence', 'OK'),

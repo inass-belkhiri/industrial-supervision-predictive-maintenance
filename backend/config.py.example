@@ -27,7 +27,7 @@ SENSOR_MAP = {
 # Position labels per mold_id within a group
 POSITION_MAP = {
     1: 'gauche',
-    2: 'centre',
+    2: 'droite',
 }
 
 # Mold nomenclature for display in UI and alerts

@@ -119,19 +119,19 @@ async def read_all_sensors(calibration_temps: dict) -> List[SensorReading]:
             deviation = None
         elif temp < config.T_MOLD_CRITICAL:
             status    = 'CRITIQUE'
-            deviation = round(temp - config.T_HEATER, 3)
+            deviation = round(temp - config.T_HEATER, 1)
         elif temp < config.T_MOLD_WARNING:
             status    = 'ALERTE'
-            deviation = round(temp - config.T_HEATER, 3)
+            deviation = round(temp - config.T_HEATER, 1)
         else:
             status    = 'OK'
-            deviation = round(temp - config.T_HEATER, 3)
+            deviation = round(temp - config.T_HEATER, 1)
 
         readings.append(SensorReading(
             group_id    = gid,
             mold_id     = mid,
             position    = pos,
-            temperature = round(temp, 2) if temp is not None else None,
+            temperature = round(temp, 1) if temp is not None else None,
             status      = status,
             threshold   = config.T_HEATER,
             deviation   = deviation,

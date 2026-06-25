@@ -37,7 +37,7 @@ class GreyBoxModel:
         """Store the day-1 calibration temperature for one mold."""
         key = (group_id, mold_id)
         self.calibration_temps[key] = T_mold_jour1
-        self.delta_T_normal[key]    = round(config.T_HEATER - T_mold_jour1, 4)
+        self.delta_T_normal[key]    = float(f"{config.T_HEATER - T_mold_jour1:.4f}")
         log.debug(
             "Calibration set mold (%d,%d): T_jour1=%.2f  delta_T_normal=%.4f",
             group_id, mold_id, T_mold_jour1, self.delta_T_normal[key]
@@ -100,12 +100,12 @@ class GreyBoxModel:
         urgence = self._classify_urgency(T_mold)
 
         return {
-            'delta_T_measured':  round(delta_T_measured,  2),
-            'delta_T_calcaire':  round(delta_T_calcaire,  2),
-            'Q':                 round(Q,                  2),
-            'R_calcaire':        round(R_calcaire,         6),
-            'epaisseur_mm':      round(epaisseur_mm,       2),
-            'degradation_pct':   round(degradation_pct,    1),
+            'delta_T_measured':  float(f"{delta_T_measured:.2f}"),
+            'delta_T_calcaire':  float(f"{delta_T_calcaire:.2f}"),
+            'Q':                 float(f"{Q:.2f}"),
+            'R_calcaire':        float(f"{R_calcaire:.6f}"),
+            'epaisseur_mm':      float(f"{epaisseur_mm:.2f}"),
+            'degradation_pct':   float(f"{degradation_pct:.1f}"),
         }
 
     @staticmethod

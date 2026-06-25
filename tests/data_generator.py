@@ -19,6 +19,11 @@ log = logging.getLogger(__name__)
 N_DAYS   = 60
 SAMPLE_HZ = 1
 
+
+def _clean(v, n):
+    """Round float to n decimals with guaranteed clean float64 representation."""
+    return float(f"{v:.{n}f}")
+
 # ── Group temperature offsets (physical: distance from heater inlet) ──────────
 GROUP_TEMP_OFFSET = {
     1: +0.3,
@@ -153,7 +158,7 @@ def generate_daily_temperature(
 
         records.append({
             'minute': minute,
-            'temperature': round(max(25, t), 1),
+            'temperature': _clean(max(25, t), 1),
         })
     return records
 
@@ -170,7 +175,7 @@ def generate_flow_rate(day_offset: int, scenario: dict, group_id: int, scenario_
         val *= 0.85
     if group_id == 3 and day_offset > 20:
         val *= 0.6
-    return round(max(0, val), 2)
+    return _clean(max(0, val), 2)
 
 
 def inject_historical_data():
@@ -200,7 +205,7 @@ def inject_historical_data():
                     status = 'ALERTE'
                 else:
                     status = 'OK'
-                deviation = round(t - config.T_HEATER, 1)
+                deviation = _clean(t - config.T_HEATER, 1)
                 ts = timestamp + timedelta(minutes=rec['minute'])
 
                 if (gid, mid) not in calibration_done:
@@ -215,11 +220,11 @@ def inject_historical_data():
                     .tag("group_id",  str(gid))
                     .tag("position",  config.POSITION_MAP.get(mid, 'unknown'))
                     .tag("status",    status)
-                    .field("temperature",     round(t, 1))
-                    .field("threshold",       round(config.T_HEATER, 1))
-                    .field("deviation",       round(deviation, 1))
-                    .field("delta_T_calcaire", round(gb['delta_T_calcaire'], 2))
-                    .field("epaisseur_mm", round(gb['epaisseur_mm'], 2))
+                    .field("temperature",     _clean(t, 1))
+                    .field("threshold",       _clean(config.T_HEATER, 1))
+                    .field("deviation",       _clean(deviation, 1))
+                    .field("delta_T_calcaire", _clean(gb['delta_T_calcaire'], 2))
+                    .field("epaisseur_mm", _clean(gb['epaisseur_mm'], 2))
                 )
                 try:
                     influx._write_api.write(
@@ -238,7 +243,7 @@ def inject_historical_data():
                 Point("flow")
                 .tag("group_id", str(gid))
                 .tag("unit", "lpm")
-                .field("flow_rate", round(flow_val, 2))
+                .field("flow_rate", _clean(flow_val, 2))
             )
             try:
                 influx._write_api.write(

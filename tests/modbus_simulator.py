@@ -68,8 +68,8 @@ def get_mode() -> str:
 def read_heater_temp() -> float:
     if _current_mode == 'HEATER_FAIL':
         decay = max(_call_counter * 0.02, 0)
-        return round(45.0 - decay, 2)
-    return round(45.0 + random.gauss(0, 0.3), 2)
+        return float(f"{45.0 - decay:.2f}")
+    return float(f"{45.0 + random.gauss(0, 0.3):.2f}")
 
 
 async def read_all_sensors(calibration_temps: dict = None) -> List[SensorReading]:
@@ -132,19 +132,19 @@ async def read_all_sensors(calibration_temps: dict = None) -> List[SensorReading
             deviation = None
         elif temp < config.T_MOLD_CRITICAL:
             status    = 'CRITIQUE'
-            deviation = round(temp - config.T_HEATER, 1)
+            deviation = float(f"{temp - config.T_HEATER:.1f}")
         elif temp < config.T_MOLD_WARNING:
             status    = 'ALERTE'
-            deviation = round(temp - config.T_HEATER, 1)
+            deviation = float(f"{temp - config.T_HEATER:.1f}")
         else:
             status    = 'OK'
-            deviation = round(temp - config.T_HEATER, 1)
+            deviation = float(f"{temp - config.T_HEATER:.1f}")
 
         readings.append(SensorReading(
             group_id    = gid,
             mold_id     = mid,
             position    = config.POSITION_MAP.get(mid, 'unknown'),
-            temperature = round(temp, 1) if temp is not None else None,
+            temperature = float(f"{temp:.1f}") if temp is not None else None,
             status      = status,
             threshold   = config.T_HEATER,
             deviation   = deviation,

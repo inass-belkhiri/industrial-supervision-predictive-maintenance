@@ -14,6 +14,12 @@ import config
 
 log = logging.getLogger(__name__)
 
+
+def _clean(v, n):
+    """Round float to n decimals with guaranteed clean float64 representation."""
+    return float(f"{v:.{n}f}")
+
+
 _client    = None
 _write_api = None
 _query_api = None
@@ -62,10 +68,10 @@ def write_sensors(readings, delta_T_calcaire_map: Dict = None):
             .tag("group_id",  str(r.group_id))
             .tag("position",  r.position)
             .tag("status",    r.status)
-            .field("temperature",     round(r.temperature, 1))
-            .field("threshold",       round(r.threshold, 1))
-            .field("deviation",       round(r.deviation, 1) if r.deviation is not None else 0.0)
-            .field("delta_T_calcaire", round(dT_calc, 2))
+            .field("temperature",     _clean(r.temperature, 1))
+            .field("threshold",       _clean(r.threshold, 1))
+            .field("deviation",       _clean(r.deviation, 1) if r.deviation is not None else 0.0)
+            .field("delta_T_calcaire", _clean(dT_calc, 2))
         )
         points.append(p)
 
@@ -151,7 +157,7 @@ def write_flow(group_id: int, flow_lpm: float):
         Point("flow")
         .tag("group_id", str(group_id))
         .tag("unit", "lpm")
-        .field("flow_rate", round(flow_lpm, 2))
+        .field("flow_rate", _clean(flow_lpm, 2))
     )
     try:
         _write_api.write(bucket=config.INFLUX_BUCKET, org=config.INFLUX_ORG, record=p)

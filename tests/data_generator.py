@@ -215,11 +215,11 @@ def inject_historical_data():
                     .tag("group_id",  str(gid))
                     .tag("position",  config.POSITION_MAP.get(mid, 'unknown'))
                     .tag("status",    status)
-                    .field("temperature",     t)
-                    .field("threshold",       config.T_HEATER)
-                    .field("deviation",       deviation)
-                    .field("delta_T_calcaire", gb['delta_T_calcaire'])
-                    .field("epaisseur_mm", gb['epaisseur_mm'])
+                    .field("temperature",     round(t, 1))
+                    .field("threshold",       round(config.T_HEATER, 1))
+                    .field("deviation",       round(deviation, 1))
+                    .field("delta_T_calcaire", round(gb['delta_T_calcaire'], 2))
+                    .field("epaisseur_mm", round(gb['epaisseur_mm'], 2))
                 )
                 try:
                     influx._write_api.write(
@@ -238,7 +238,7 @@ def inject_historical_data():
                 Point("flow")
                 .tag("group_id", str(gid))
                 .tag("unit", "lpm")
-                .field("flow_rate", flow_val)
+                .field("flow_rate", round(flow_val, 2))
             )
             try:
                 influx._write_api.write(

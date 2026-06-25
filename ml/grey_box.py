@@ -100,12 +100,11 @@ class GreyBoxModel:
         urgence = self._classify_urgency(T_mold)
 
         return {
-            'delta_T_measured':  round(delta_T_measured,  4),
-            'delta_T_calcaire':  round(delta_T_calcaire,  4),
+            'delta_T_measured':  round(delta_T_measured,  2),
+            'delta_T_calcaire':  round(delta_T_calcaire,  2),
             'Q':                 round(Q,                  2),
             'R_calcaire':        round(R_calcaire,         6),
-            'epaisseur_mm':      round(epaisseur_mm,       4),
-            'urgence':           urgence,
+            'epaisseur_mm':      round(epaisseur_mm,       2),
             'degradation_pct':   round(degradation_pct,    1),
         }
 

@@ -153,7 +153,7 @@ def generate_daily_temperature(
 
         records.append({
             'minute': minute,
-            'temperature': round(max(25, t), 2),
+            'temperature': round(max(25, t), 1),
         })
     return records
 

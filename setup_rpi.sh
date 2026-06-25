@@ -93,14 +93,6 @@ else
   ok "Bluetooth deja desactive"
 fi
 
-# ── PWM pour la bande LED WS2812B ─────────────────────────────────────────────
-if ! grep -q "dtoverlay=pwm" /boot/firmware/config.txt 2>/dev/null; then
-  echo "dtoverlay=pwm,pin=18,func=2" | sudo tee -a /boot/firmware/config.txt > /dev/null
-  ok "PWM GPIO18 configure pour la bande LED"
-else
-  ok "PWM GPIO18 deja configure"
-fi
-
 # ── Desactiver le service hciuart ─────────────────────────────────────────────
 sudo systemctl disable hciuart 2>/dev/null || true
 sudo systemctl stop hciuart 2>/dev/null || true

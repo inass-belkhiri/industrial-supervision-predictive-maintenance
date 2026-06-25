@@ -21,7 +21,6 @@ Le projet est un système de supervision thermique avancé qui passe d'une simpl
   - Calcul de criticité
 
 - **Alertes**
-  - Webhook n8n
   - Notifications email
   - Tableau de bord temps réel
 
@@ -37,8 +36,6 @@ L'architecture du projet est structurée en trois niveaux distincts :
 - **Niveau 1** : Acquisition Physique
 
 Composé d'un Raspberry Pi 4 8GB qui interroge les 12 capteurs de température et 3 capteurs de débit via Modbus RTU.
-
-Inclut un système d'alertes visuelles avec une LED WS2812B.
 
 - **Niveau 2** : Traitement et Machine Learning
 
@@ -56,7 +53,7 @@ L'AMDEC est intégrée pour prioriser la criticité des défaillances (calculée
 
    - **InfluxDB** : Base de données pour le stockage des séries temporelles.
 
-   - **n8n** : Plateforme d'automatisation pour la gestion des alertes (Telegram/Email) et la génération de rapports.
+
 
 ## Protocoles de Communication
 Le système utilise plusieurs protocoles pour assurer la communication entre ses différents composants :
@@ -67,7 +64,7 @@ Le système utilise plusieurs protocoles pour assurer la communication entre ses
 | WebSocket | Temps réel | 8000 |
 | HTTP/REST | API | 8000 |
 | InfluxDB HTTP | Stockage | 8086 |
-| n8n Webhooks | Alertes | 5678 |
+| Telegram / Email | Alertes | SMTP / API |
 
 ## Modèle Grey-Box et Soft Sensing
 L'innovation majeure du projet réside dans l'utilisation d'un modèle Grey-Box pour le soft sensing. Ce modèle physique estime l'épaisseur de calcaire dans les tuyaux en utilisant des données indirectes : températures d'entrée et de sortie, débit et température ambiante. Le principe repose sur un bilan thermique, où la résistance thermique du dépôt de calcaire est déduite des mesures selon la formule clé :
@@ -133,27 +130,7 @@ python main.py
   npm install
   npm run dev
   
-#n8n via Docker
-  # Install Docker if not present
-  curl -fsSL https://get.docker.com -o get-docker.sh
-  sudo sh get-docker.sh
-  sudo usermod -aG docker pi
 
-  # Create data directory
-  mkdir -p ${PROJECT_DIR}/n8n_data
-  sudo chown -R 1000:1000 ${PROJECT_DIR}/n8n_data
-
-  # Run n8n container
-  docker run -d \
-    --name n8n \
-    --restart always \
-    -p 5678:5678 \
-    -v ${PROJECT_DIR}/n8n_data:/home/node/.n8n \
-    -e N8N_BASIC_AUTH_ACTIVE=true \
-    -e N8N_BASIC_AUTH_USER="admin" \
-    -e N8N_BASIC_AUTH_PASSWORD="n8n12345" \
-    -e TZ="Africa/Casablanca" \
-    n8nio/n8n:latest
 ```
 
 ## Variables d'Environnement
@@ -168,7 +145,7 @@ python main.py
 | `INFLUXDB_BUCKET` | Bucket de données | `supervision` |
 | `MODBUS_PORT` | Port série Modbus | `/dev/ttyUSB0` |
 | `MODBUS_BAUDRATE` | Baudrate Modbus | `9600` |
-| `N8N_WEBHOOK_ALERT` | Webhook n8n alerte | `http://localhost:5678/webhook/alert` |
+
 
 ### Frontend (`.env`)
 
@@ -223,9 +200,6 @@ echo "VITE_API_URL=http://localhost:8000" >> frontend/.env
 │ ├── cause_classifier.py
 │ ├── grey_box.py
 │ └── ridge_predictor.py
-├── n8n_workflows/
-│ ├── workflow_1_alertes.json
-│ └── workflow_2_rapport_quotidien.json
 ├── tests/
 │ ├── test_modbus.py
 │ ├── test_ml.py
@@ -233,10 +207,8 @@ echo "VITE_API_URL=http://localhost:8000" >> frontend/.env
 │ └── test_websocket.py
 ├── docs/
 │ └── images/
-│ ├── architecture.png
-│ ├── dashboard.png
-│ ├── n8n_workflow.png
-│ └── led_alert.jpg
+│   ├── architecture.png
+│   ├── dashboard.png
 ├── .gitignore
 ├── setup_rpi.sh
 └── README.md
@@ -270,14 +242,11 @@ pytest
 | Backend API | http://localhost:8000 |
 | Frontend | http://localhost:5173 |
 | Frontend (depuis PC) | http://IP_RPI:5173 |
-| n8n Interface | http://localhost:5678 |
 | InfluxDB | http://localhost:8086 |
 | API Documentation (FastAPI) | http://localhost:8000/docs |
 
 ## Documentation
 **Architecture détaillée (ARCHITECTURE.md)** : Document décrivant l'architecture complète du système, les choix technologiques, les flux de données et l'organisation des composants.
-
-**Guide installation n8n (N8N_SETUP.md)** : Procédure détaillée pour l'installation et la configuration de n8n sur le Raspberry Pi, l'import des workflows et la gestion des alertes.
 
 **API Reference (API.md)** : Documentation complète des endpoints disponibles :
 

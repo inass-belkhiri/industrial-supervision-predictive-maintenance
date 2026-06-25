@@ -200,7 +200,7 @@ def inject_historical_data():
                     status = 'ALERTE'
                 else:
                     status = 'OK'
-                deviation = round(t - config.T_HEATER, 3)
+                deviation = round(t - config.T_HEATER, 1)
                 ts = timestamp + timedelta(minutes=rec['minute'])
 
                 if (gid, mid) not in calibration_done:

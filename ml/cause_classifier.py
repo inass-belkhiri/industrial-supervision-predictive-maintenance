@@ -187,6 +187,8 @@ class CauseClassifier:
             return 'HEATER_RESISTANCE_HS'
         if affected_ratio > 0.8 and flow_drop:
             return 'HEATER_POMPE_HS'
+        if sudden_drop and affected_ratio > 0.8:
+            return 'FUITE_CIRCUIT'
         if affected_ratio > 0.7 and flow_rate < 0.5:
             return 'NIVEAU_BAS_VANNE_PANNE'
         if variance > variance_threshold and R_squared < 0.3 and affected_ratio < 0.4:
@@ -195,9 +197,7 @@ class CauseClassifier:
             return 'CALCAIRE_TUYAUX'
         if affected_ratio < 0.3 and R_squared > 0.7:
             return 'ISOLATION_DEGRADEE'
-        # Si aucune condition : on pourrait retourner la classe la plus probable
-        # ou lever une exception, selon le contexte d'utilisation
-        return 'NORMAL'  # Aucune anomalie détectée
+        return 'CAUSE_INDETERMINEE'
 
     # ── Persistence ──────────────────────────────────────────────────────────
 

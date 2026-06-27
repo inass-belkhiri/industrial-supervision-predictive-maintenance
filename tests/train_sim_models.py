@@ -31,15 +31,6 @@ N_CYCLES = {
     'PUMP_FAIL':    200,
 }
 
-MODE_LABEL = {
-    'NORMAL':        'ISOLATION_DEGRADEE',
-    'GRADUAL_DROP':  'HEATER_RESISTANCE_HS',
-    'SUDDEN_DROP':   'HEATER_POMPE_HS',
-    'NOISY':         'BULLES_AIR',
-    'HEATER_FAIL':   'HEATER_RESISTANCE_HS',
-    'PUMP_FAIL':     'HEATER_POMPE_HS',
-}
-
 
 def _generate_flow(mode: str, call_idx: int) -> float:
     if mode == 'PUMP_FAIL':
@@ -185,7 +176,17 @@ async def collect_all_for_rf():
             ]])
 
             features_rf.append(feat_10d[0])
-            labels_rf.append(MODE_LABEL[mode])
+            labels_rf.append(CauseClassifier.auto_label(
+                affected_ratio=float(f[2]),
+                sudden_drop=bool(f[3]),
+                flow_drop=bool(flow_drop),
+                flow_rate=float(f[4]),
+                variance=float(f[1]),
+                R_squared=drift_R_squared,
+                delta_T_calcaire_slope=delta_T_calcaire_slope,
+                temp_heater=config.T_HEATER,
+                nominal_flow=config.FLOW_DEFAULT_LPM,
+            ))
 
         log.info("  -> RF features so far: %d", len(features_rf))
 

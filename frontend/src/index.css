@@ -248,6 +248,21 @@ body::before {
 .fade-in { animation: fadeIn 0.4s ease-out; }
 @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 
+@keyframes moldCriticalPulse {
+  0%, 100% {
+    border-color: rgba(245, 55, 65, 0.5);
+    box-shadow: 0 0 0 1px rgba(245, 55, 65, 0.3);
+  }
+  50% {
+    border-color: rgba(255, 75, 85, 0.95);
+    box-shadow: 0 0 18px 2px rgba(245, 55, 65, 0.45);
+  }
+}
+
+.mold-critical-pulse {
+  animation: moldCriticalPulse 1.5s ease-in-out infinite;
+}
+
 /* ── Light mode tailwind overrides ─────────────────────────── */
 [data-theme="light"] .text-slate-100 { color: #1a1040 !important; }
 [data-theme="light"] .text-slate-200 { color: #2d2060 !important; }

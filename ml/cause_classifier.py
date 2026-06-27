@@ -99,6 +99,15 @@ class CauseClassifier:
                 'method':     'physical_rule',
             }
 
+        # Leak: flow below nominal but not collapsed, gradual
+        if flow_rate < 0.7 * nominal_flow and flow_rate > 2.0 \
+           and not sudden_drop and affected_ratio > 0.3:
+            return {
+                'cause':      'FUITE_CIRCUIT',
+                'confidence': 1.0,
+                'method':     'physical_rule',
+            }
+
         return None   # ambiguous — use ML
 
     # ── Level 2 — Random Forest ───────────────────────────────────────────────
@@ -187,14 +196,16 @@ class CauseClassifier:
             return 'HEATER_RESISTANCE_HS'
         if affected_ratio > 0.8 and flow_drop:
             return 'HEATER_POMPE_HS'
-        if sudden_drop and affected_ratio > 0.8:
-            return 'FUITE_CIRCUIT'
         if affected_ratio > 0.7 and flow_rate < 0.5:
             return 'NIVEAU_BAS_VANNE_PANNE'
         if variance > variance_threshold and R_squared < 0.3 and affected_ratio < 0.4:
             return 'BULLES_AIR'
         if delta_T_calcaire_slope > 0.03 and R_squared > 0.85:
             return 'CALCAIRE_TUYAUX'
+        if flow_rate < 0.7 * nominal_flow and flow_rate > 2.0 \
+           and delta_T_calcaire_slope < 0.03 and not sudden_drop \
+           and affected_ratio > 0.3:
+            return 'FUITE_CIRCUIT'
         if affected_ratio < 0.3 and R_squared > 0.7:
             return 'ISOLATION_DEGRADEE'
         return 'CAUSE_INDETERMINEE'

@@ -64,7 +64,7 @@ class TestCauseClassifier:
 
         assert CauseClassifier.auto_label(
             affected_ratio=0.8, sudden_drop=False, flow_drop=False,
-            flow_rate=3.0, variance=0.05, R_squared=0.5,
+            flow_rate=0.3, variance=0.05, R_squared=0.5,
             delta_T_calcaire_slope=0.01,
         ) == 'NIVEAU_BAS_VANNE_PANNE'
 
@@ -88,6 +88,6 @@ class TestCauseClassifier:
 
         assert CauseClassifier.auto_label(
             affected_ratio=0.5, sudden_drop=False, flow_drop=False,
-            flow_rate=16.5, variance=0.05, R_squared=0.5,
-            delta_T_calcaire_slope=0.01,
+            flow_rate=11.0, variance=0.05, R_squared=0.5,
+            delta_T_calcaire_slope=0.01, nominal_flow=16.5,
         ) == 'FUITE_CIRCUIT'

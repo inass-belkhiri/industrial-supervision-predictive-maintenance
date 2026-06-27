@@ -72,7 +72,7 @@ export default function MoldCard({ mold }) {
     : 'text-slate-400'
 
   return (
-    <div className={`border-l-4 ${borderColor} p-4 flex flex-col gap-3 fade-in`}
+    <div className={`border-l-4 ${borderColor} p-4 flex flex-col gap-3 fade-in ${status === 'CRITIQUE' ? 'mold-critical-pulse' : ''}`}
       style={{ background: "var(--card-bg)", backdropFilter: "var(--card-blur)", WebkitBackdropFilter: "var(--card-blur)", border: "1px solid var(--card-border)", borderRadius: 18, boxShadow: "var(--card-shadow)" }}>
 
       {/* Header */}

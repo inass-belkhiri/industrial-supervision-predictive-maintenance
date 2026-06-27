@@ -6,6 +6,7 @@
 
 import React, { useMemo } from 'react'
 import MoldCard from './MoldCard'
+import CriticalGlow from './CriticalGlow'
 
 const GROUP_NAMES = {
   1: 'Heater 1',
@@ -97,7 +98,14 @@ export default function SupervisionTab({ sensors = [] }) {
     [sensors]
   )
 
+  const hasCritical = useMemo(
+    () => sensors.some(s => s.status === 'CRITIQUE'),
+    [sensors]
+  )
+
   return (
+    <>
+    <CriticalGlow active={hasCritical} />
     <div className="flex flex-col gap-6 fade-in">
 
       {/* Summary bar */}
@@ -128,6 +136,7 @@ export default function SupervisionTab({ sensors = [] }) {
         ))}
       </div>
     </div>
+    </>
   )
 }
 

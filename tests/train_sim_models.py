@@ -29,6 +29,7 @@ N_CYCLES = {
     'NOISY':        200,
     'HEATER_FAIL':  200,
     'PUMP_FAIL':    200,
+    'FUITE':        200,
 }
 
 
@@ -39,6 +40,8 @@ def _generate_flow(mode: str, call_idx: int) -> float:
         val = config.FLOW_DEFAULT_LPM + random.gauss(0, 3.0)
     elif mode == 'GRADUAL_DROP':
         val = config.FLOW_DEFAULT_LPM - call_idx * 0.02 + random.gauss(0, 0.3)
+    elif mode == 'FUITE':
+        val = 10.0 - call_idx * 0.01 + random.gauss(0, 0.3)
     else:
         val = config.FLOW_DEFAULT_LPM + random.gauss(0, 0.3)
     return max(0, val)

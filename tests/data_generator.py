@@ -224,8 +224,9 @@ def inject_historical_data():
                     .field("threshold",       _clean(config.T_HEATER, 1))
                     .field("deviation",       _clean(deviation, 1))
                     .field("delta_T_calcaire", _clean(gb['delta_T_calcaire'], 2))
-                    .field("epaisseur_mm", _clean(gb['epaisseur_mm'], 2))
                 )
+                if (gid, mid) == (1, 1):
+                    p = p.field("epaisseur_mm", _clean(gb['epaisseur_mm'], 2))
                 try:
                     influx._write_api.write(
                         bucket=config.INFLUX_BUCKET,

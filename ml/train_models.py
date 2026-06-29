@@ -378,7 +378,10 @@ def evaluate_models(rf_features, labels):
     }
 
 
-def save_report(results, path='backend/models/training_report.json'):
+def save_report(results, path=None):
+    if path is None:
+        path = os.path.join(os.path.dirname(__file__), '..', 'backend', 'models', 'training_report.json')
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     """Save training report as JSON."""
     serializable = {}
     for k, v in results.items():

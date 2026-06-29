@@ -226,6 +226,7 @@ def inject_historical_data():
                     .field("threshold",       _clean(config.T_HEATER, 1))
                     .field("deviation",       _clean(deviation, 1))
                     .field("delta_T_calcaire", _clean(gb['delta_T_calcaire'], 2))
+                    .time(ts)
                 )
                 if (gid, mid) == (1, 1):
                     p = p.field("epaisseur_mm", _clean(gb['epaisseur_mm'], 2))
@@ -240,6 +241,7 @@ def inject_historical_data():
                     .tag("group_id", str(gid))
                     .tag("unit", "lpm")
                     .field("flow_rate", _clean(flow_val, 2))
+                    .time(ts)
                 )
                 batch.append(p)
 

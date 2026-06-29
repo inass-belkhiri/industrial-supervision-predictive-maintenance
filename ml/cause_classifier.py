@@ -175,7 +175,7 @@ class CauseClassifier:
         variance:              float,
         R_squared:             float,
         delta_T_calcaire_slope: float,
-        variance_threshold:    float = 0.1,
+        variance_threshold:    float = 0.12,
         nominal_flow:          float = 16.5,
     ) -> str:
         """
@@ -190,7 +190,7 @@ class CauseClassifier:
             return 'NIVEAU_BAS_VANNE_PANNE'
         if flow_rate < 0.7 * nominal_flow and flow_rate > 2.0 and not sudden_drop:
             return 'FUITE_CIRCUIT'
-        if delta_T_calcaire_slope > 0.01 and R_squared > 0.7 and affected_ratio < 0.3:
+        if delta_T_calcaire_slope > 0.01 and R_squared > 0.5 and affected_ratio < 0.3:
             return 'CALCAIRE_TUYAUX'
         if 0.0 < affected_ratio <= 0.25:
             return 'ISOLATION_DEGRADEE'

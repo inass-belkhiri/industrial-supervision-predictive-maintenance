@@ -244,21 +244,21 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
             flow_rate_samples.append(flow_rate)
             flow_drop_samples.append(flow_drop)
 
-        # drift_R_squared from temps in this window
-        all_window_temps = []
+        # drift_R_squared: per-mold R² then averaged (concatenating molds with
+        # different baselines artificially depresses R², killing CALCAIRE_TUYAUX)
+        r2_list = []
         for key in all_mold_keys:
             vals = temp_history.get(key, [])
             if len(vals) >= 10:
-                all_window_temps.extend(vals)
-        if all_window_temps:
-            x_arr = np.arange(len(all_window_temps))
-            coeffs = np.polyfit(x_arr, all_window_temps, 1)
-            y_pred = np.polyval(coeffs, x_arr)
-            ss_res = np.sum((np.array(all_window_temps) - y_pred) ** 2)
-            ss_tot = np.sum((np.array(all_window_temps) - np.mean(all_window_temps)) ** 2)
-            drift_R_squared = float(1 - ss_res / ss_tot) if ss_tot > 0 else 0.9
-        else:
-            drift_R_squared = 0.9
+                arr = np.array(vals)
+                x_arr = np.arange(len(arr))
+                coeffs = np.polyfit(x_arr, arr, 1)
+                y_pred = np.polyval(coeffs, x_arr)
+                ss_res = np.sum((arr - y_pred) ** 2)
+                ss_tot = np.sum((arr - np.mean(arr)) ** 2)
+                r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.9
+                r2_list.append(r2)
+        drift_R_squared = float(np.mean(r2_list)) if r2_list else 0.9
 
         # delta_T_calcaire_slope = mean / 7 (approximation)
         dT_vals = list(current_dT.values())

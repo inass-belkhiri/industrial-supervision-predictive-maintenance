@@ -73,7 +73,7 @@ TEMPERATURE_SCENARIOS = {
         'flow_mean': 13.0,
         'flow_std':  1.0,
         'T_scenario_offset': -1.0,
-        'intra_day_drift': -0.006,
+        'intra_day_drift': -0.003,
     },
     'pompe_hs': {
         'weight': 0.08,
@@ -172,6 +172,7 @@ def generate_daily_temperature(
         defect_duration = random.randint(*LOCAL_DEFECT_DURATION)
         defect_drop = random.uniform(*LOCAL_DEFECT_DROP_RANGE)
 
+    noise_std = scenario.get('T_std', 0.3) * 0.08 / 0.3
     records = []
     prev_temp = None
     sc_offset = scenario.get('T_scenario_offset', 0.0) if is_affected else 0.0
@@ -183,9 +184,9 @@ def generate_daily_temperature(
         target = config.T_HEATER + group_offset + mold_offset + cycle + drift + sc_offset + intra_drift * minute
 
         if prev_temp is None:
-            prev_temp = target + random.gauss(0, 0.08)
+            prev_temp = target + random.gauss(0, noise_std)
         else:
-            prev_temp = (1-alpha) * prev_temp + alpha * target + random.gauss(0, 0.08)
+            prev_temp = (1-alpha) * prev_temp + alpha * target + random.gauss(0, noise_std)
         t = prev_temp
 
         if mold_id == defect_mold and minute < defect_duration * 5:

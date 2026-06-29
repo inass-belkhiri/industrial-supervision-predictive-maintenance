@@ -337,57 +337,52 @@ def train_isolation_forest(if_features, normal_mask=None):
 
 def train_random_forest(rf_features, labels):
     """Train Random Forest on 10D feature vectors with auto-labels.
-    Two categories are excluded:
-      - N1 causes (HEATER_RESISTANCE_HS, HEATER_POMPE_HS, NIVEAU_BAS_VANNE_PANNE):
-        handled deterministically by physical_rules() — no ML needed.
-      - CAUSE_INDETERMINEE: not a coherent physical class. It is a fallback
-        triggered by confidence threshold at inference, NOT a learned label.
-        Including it would pollute RF decision boundaries with a garbage-bin class.
-    Only specific N2 classes go to RF (currently: BULLES_AIR, FUITE_CIRCUIT,
-    CALCAIRE_TUYAUX, ISOLATION_DEGRADEE).
+    All 7 AMDEC classes are trained (N1 + N2). N1 physical rules run FIRST
+    at inference, then RF catches cases that fall below N1 thresholds.
+    Only CAUSE_INDETERMINEE is excluded: it is not a physical class but a
+    confidence threshold fallback — including it would pollute RF boundaries.
     """
-    EXCLUDE = {'HEATER_RESISTANCE_HS', 'HEATER_POMPE_HS', 'NIVEAU_BAS_VANNE_PANNE', 'CAUSE_INDETERMINEE'}
+    EXCLUDE = {'CAUSE_INDETERMINEE'}
     keep_mask = [l not in EXCLUDE for l in labels]
-    X_n2 = np.vstack([rf_features[i] for i in range(len(labels)) if keep_mask[i]])
-    labels_n2 = [labels[i] for i in range(len(labels)) if keep_mask[i]]
+    X_train = np.vstack([rf_features[i] for i in range(len(labels)) if keep_mask[i]])
+    labels_train = [labels[i] for i in range(len(labels)) if keep_mask[i]]
 
-    removed = len(labels) - len(labels_n2)
+    removed = len(labels) - len(labels_train)
     if removed:
-        log.info("Excluded %d non-N2 samples (N1 + normal)", removed)
+        log.info("Excluded %d CAUSE_INDETERMINEE samples", removed)
 
     log.info("Training Random Forest on %d samples (%d classes)...",
-             len(X_n2), len(set(labels_n2)))
+             len(X_train), len(set(labels_train)))
     rf = CauseClassifier()
     rf.trained = False
-    rf.train(X_n2, labels_n2)
+    rf.train(X_train, labels_train)
     log.info("Random Forest trained and saved → models/random_forest.pkl")
 
     # Class distribution
     from collections import Counter
-    dist = Counter(labels_n2)
-    log.info("N2 class distribution:")
+    dist = Counter(labels_train)
+    log.info("RF class distribution (excluding CAUSE_INDETERMINEE):")
     for cls, count in sorted(dist.items(), key=lambda x: -x[1]):
         log.info("  %-30s %6d (%.1f%%)", cls, count, count / len(labels) * 100)
 
 
 def evaluate_models(rf_features, labels):
-    """Split train/test and report metrics for Random Forest (N2 only).
-    CAUSE_INDETERMINEE excluded: it is not a physical class but a confidence
-    threshold fallback. Training or evaluating on it would pollute metrics."""
+    """Split train/test and report metrics for Random Forest (all 7 AMDEC classes).
+    Only CAUSE_INDETERMINEE excluded: it is not a physical class but a confidence
+    threshold fallback — evaluating on it would pollute metrics."""
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
     log.info("Evaluating Random Forest (80/20 split)...")
 
-    # Filter out N1 and normal (CAUSE_INDETERMINEE) — RF only predicts N2
-    EXCLUDE = {'HEATER_RESISTANCE_HS', 'HEATER_POMPE_HS', 'NIVEAU_BAS_VANNE_PANNE', 'CAUSE_INDETERMINEE'}
+    EXCLUDE = {'CAUSE_INDETERMINEE'}
     keep_mask = [l not in EXCLUDE for l in labels]
     X_all = np.vstack([rf_features[i] for i in range(len(labels)) if keep_mask[i]])
     y_all = np.array([labels[i] for i in range(len(labels)) if keep_mask[i]])
 
     removed = len(labels) - len(y_all)
     if removed:
-        log.info("Excluded %d non-N2 samples from evaluation", removed)
+        log.info("Excluded %d CAUSE_INDETERMINEE samples from evaluation", removed)
 
     # Temporal split (no shuffle — time series!)
     split = int(len(X_all) * 0.8)
@@ -403,11 +398,11 @@ def evaluate_models(rf_features, labels):
         result = rf.predict(x.reshape(1, -1))
         y_pred.append(result['cause'])
 
-    n2_labels = sorted(set(y_test))
-    f1_macro = f1_score(y_test, y_pred, labels=n2_labels, average='macro', zero_division=0)
+    class_labels = sorted(set(y_test))
+    f1_macro = f1_score(y_test, y_pred, labels=class_labels, average='macro', zero_division=0)
 
-    report = classification_report(y_test, y_pred, labels=n2_labels, zero_division=0)
-    print("\nClassification Report (Random Forest — N2 only):")
+    report = classification_report(y_test, y_pred, labels=class_labels, zero_division=0)
+    print("\nClassification Report (Random Forest — all AMDEC classes):")
     print(report)
     print(f"F1 macro: {f1_macro:.4f}")
 

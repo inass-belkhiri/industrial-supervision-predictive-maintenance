@@ -651,7 +651,7 @@ async def model_health_loop():
 # ── Calibration ───────────────────────────────────────────────────────────────
 def _load_calibrations():
     for (gid, mid) in config.SENSOR_MAP.keys():
-        T_jour1 = influx.query_calibration_temp(gid, mid) or config.T_HEATER
+        T_jour1 = influx.query_calibration_temp(gid, mid) or config.T_HEATER - 0.5
         calibration_temps[(gid, mid)] = T_jour1
         grey_box.set_calibration(gid, mid, T_jour1)
         log.info("Calibration mold (%d,%d): %.2f", gid, mid, T_jour1)

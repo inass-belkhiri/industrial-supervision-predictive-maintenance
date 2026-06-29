@@ -235,12 +235,16 @@ async def _cycle():
 
     anomaly_result = {'anomaly_detected': False, 'anomaly_score': None}
     cause_result   = {'cause': 'NORMAL', 'confidence': 1.0, 'method': 'default', 'proba_dict': {}}
-    affected_molds = []
+    affected_molds = [r.mold_id for r in readings if r.status in ('ALERTE', 'CRITIQUE')]
 
     if features is not None:
         anomaly_result = iso_forest.predict(features)
-        if anomaly_result['anomaly_detected']:
-            affected_molds = [r.mold_id for r in readings if r.status in ('ALERTE', 'CRITIQUE')]
+
+        # Entrer dans le bloc si l'IF détecte une anomalie OU si des capteurs sont réellement en alerte
+        if anomaly_result['anomaly_detected'] or affected_molds:
+            if not anomaly_result['anomaly_detected']:
+                anomaly_result = {'anomaly_detected': True, 'anomaly_score': -1.0}
+
             affected_ratio = len(affected_molds) / config.N_MOLDS
             sudden_drop    = any(
                 len(list(TEMP_HISTORY.get(k, []))) >= 120 and
@@ -309,6 +313,16 @@ async def _cycle():
             })
             if len(diagnostic_history) > 100:
                 diagnostic_history.pop(0)
+
+    # Si des capteurs sont en alerte mais qu'on n'a pas pu analyser (features None ou IF silencieux)
+    if affected_molds and not anomaly_result['anomaly_detected']:
+        anomaly_result = {'anomaly_detected': True, 'anomaly_score': -1.0}
+        cause_result = {
+            'cause': 'DEGRADATION_THERMIQUE',
+            'confidence': 1.0,
+            'method': 'threshold_detection',
+            'proba_dict': {},
+        }
 
     # Build sensor list
     sensor_list = []

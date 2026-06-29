@@ -61,51 +61,63 @@ LOCAL_DEFECT_DURATION = (2, 4)
 
 TEMPERATURE_SCENARIOS = {
     'normal': {
-        'weight': 0.55,
+        'weight': 0.40,
         'T_std':  0.3,
         'flow_mean': 16.5,
         'flow_std':  0.5,
-        'heater_offset': 0.0,
         'T_scenario_offset': 0.0,
     },
     'calcaire': {
-        'weight': 0.10,
-        'T_std':  0.4,
+        'weight': 0.12,
+        'T_std':  0.3,
         'flow_mean': 13.0,
         'flow_std':  1.0,
-        'heater_offset': 0.0,
-        'T_scenario_offset': -0.3,
+        'T_scenario_offset': -1.0,
+        'intra_day_drift': -0.06,
     },
     'pompe_hs': {
-        'weight': 0.10,
+        'weight': 0.08,
         'T_std':  1.0,
         'flow_mean': 3.0,
         'flow_std':  0.5,
-        'heater_offset': 0.0,
         'T_scenario_offset': -8.0,
     },
     'resistance_hs': {
-        'weight': 0.08,
+        'weight': 0.06,
         'T_std':  0.6,
         'flow_mean': 14.0,
         'flow_std':  1.0,
-        'heater_offset': -3.0,
         'T_scenario_offset': -5.0,
     },
     'vanne_panne': {
-        'weight': 0.06,
+        'weight': 0.05,
         'T_std':  1.2,
         'flow_mean': 0.3,
         'flow_std':  0.1,
-        'heater_offset': 0.0,
         'T_scenario_offset': -6.0,
     },
+    'fuite_circuit': {
+        'weight': 0.08,
+        'T_std':  0.5,
+        'flow_mean': 8.0,
+        'flow_std':  0.5,
+        'T_scenario_offset': -1.5,
+        'flow_decay': -0.002,
+    },
+    'isolation': {
+        'weight': 0.08,
+        'T_std':  0.3,
+        'flow_mean': 16.5,
+        'flow_std':  0.5,
+        'T_scenario_offset': -0.5,
+        'intra_day_drift': -0.03,
+        'n_affected_molds': 1,
+    },
     'bruit': {
-        'weight': 0.10,
+        'weight': 0.13,
         'T_std':  1.2,
         'flow_mean': 15.0,
         'flow_std':  3.0,
-        'heater_offset': 0.0,
         'T_scenario_offset': 0.0,
     },
 }
@@ -147,6 +159,10 @@ def generate_daily_temperature(
         max_drift = ENCRASSEMENT_DRIFT.get(group_id, -0.02) * (N_DAYS - 20)
         drift = max_drift * (1 - math.exp(-0.05 * (day_offset - 20)))
 
+    intra_day_drift = scenario.get('intra_day_drift', 0.0)
+    n_affected = scenario.get('n_affected_molds', 6)
+    is_affected = mold_id <= n_affected
+
     defect_mold = None
     defect_duration = 0
     defect_drop = 0.0
@@ -157,12 +173,13 @@ def generate_daily_temperature(
 
     records = []
     prev_temp = None
-    sc_offset = scenario.get('T_scenario_offset', 0.0)
+    sc_offset = scenario.get('T_scenario_offset', 0.0) if is_affected else 0.0
+    intra_drift = intra_day_drift if is_affected else 0.0
     alpha = 0.30 if abs(sc_offset) > 4.0 else 0.12 if abs(sc_offset) > 2.0 else 0.03
     for minute in range(0, 1440, 5):
         cycle = daily_cycle_offset(minute)
 
-        target = config.T_HEATER + group_offset + mold_offset + cycle + drift + sc_offset
+        target = config.T_HEATER + group_offset + mold_offset + cycle + drift + sc_offset + intra_drift * minute
 
         if prev_temp is None:
             prev_temp = target + random.gauss(0, 0.08)
@@ -180,14 +197,20 @@ def generate_daily_temperature(
     return records
 
 
-def generate_flow_rate(day_offset: int, scenario: dict, group_id: int, scenario_name: str = 'normal') -> float:
+def generate_flow_rate(
+    day_offset: int, scenario: dict, group_id: int,
+    scenario_name: str = 'normal', minute: int = 0
+) -> float:
     base = GROUP_FLOW_BASELINE.get(group_id, config.FLOW_DEFAULT_LPM)
     flow_mean = scenario['flow_mean']
     flow_std  = scenario['flow_std']
+    flow_decay = scenario.get('flow_decay', 0.0)
     if flow_mean < 5.0:
         val = flow_mean + random.gauss(0, flow_std)
     else:
         val = base * (flow_mean / config.FLOW_DEFAULT_LPM) + random.gauss(0, flow_std)
+    if flow_decay:
+        val += flow_decay * minute
     if scenario_name == 'pompe_hs' and group_id != 1:
         val *= 0.85
     if group_id == 3 and day_offset > 20:
@@ -251,7 +274,7 @@ def inject_historical_data():
 
         for gid in config.FLOW_SENSOR_PINS:
             for minute in range(0, 1440, 5):
-                flow_val = generate_flow_rate(day, scenario, gid, scenario_name)
+                flow_val = generate_flow_rate(day, scenario, gid, scenario_name, minute)
                 ts = timestamp + timedelta(minutes=minute)
                 p = (
                     Point("flow")

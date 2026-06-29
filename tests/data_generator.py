@@ -196,7 +196,7 @@ def inject_historical_data():
 
         batch = []
 
-        for idx, ((gid, mid), (slave, reg)) in enumerate(config.SENSOR_MAP.items()):
+        for (gid, mid), (slave, reg) in config.SENSOR_MAP.items():
             temps = generate_daily_temperature(day, gid, mid, scenario, scenario_name)
             g_flow = generate_flow_rate(day, scenario, gid, scenario_name)
             for rec in temps:
@@ -208,7 +208,7 @@ def inject_historical_data():
                 else:
                     status = 'OK'
                 deviation = _clean(t - config.T_HEATER, 1)
-                ts = timestamp + timedelta(minutes=rec['minute']) + timedelta(microseconds=idx)
+                ts = timestamp + timedelta(minutes=rec['minute'])
 
                 if (gid, mid) not in calibration_done:
                     grey.set_calibration(gid, mid, t)

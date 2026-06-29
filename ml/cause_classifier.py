@@ -80,6 +80,14 @@ class CauseClassifier:
         Returns a result dict if the case is certain, or None for ambiguous cases.
         Note: no heater temperature sensor (HEATER_TEMP_SENSOR = None in config).
         """
+        # Low water level / valve issue: many molds affected, near-zero flow
+        if affected_ratio > 0.7 and flow_rate < 1.0:
+            return {
+                'cause':      'NIVEAU_BAS_VANNE_PANNE',
+                'confidence': 1.0,
+                'method':     'physical_rule',
+            }
+
         # Heater resistance failure: no heat → all molds cold, but flow normal (pump OK)
         if affected_ratio > 0.85 and flow_rate > 0.7 * nominal_flow and not flow_drop:
             return {
@@ -89,17 +97,9 @@ class CauseClassifier:
             }
 
         # Pump failure: flow collapse (very low but not zero), all molds affected
-        if affected_ratio > 0.8 and flow_drop:
+        if affected_ratio > 0.8 and flow_drop and flow_rate >= 1.0:
             return {
                 'cause':      'HEATER_POMPE_HS',
-                'confidence': 1.0,
-                'method':     'physical_rule',
-            }
-
-        # Low water level / valve issue: many molds affected, zero flow
-        if affected_ratio > 0.7 and flow_rate < 0.5:
-            return {
-                'cause':      'NIVEAU_BAS_VANNE_PANNE',
                 'confidence': 1.0,
                 'method':     'physical_rule',
             }
@@ -197,12 +197,12 @@ class CauseClassifier:
         because CAUSE_INDETERMINEE is not a coherent physical class — it is a
         fallback mechanism triggered by confidence threshold at inference time.
         """
+        if affected_ratio > 0.7 and flow_rate < 1.0:
+            return 'NIVEAU_BAS_VANNE_PANNE'
         if affected_ratio > 0.85 and flow_rate > 0.7 * nominal_flow and not flow_drop:
             return 'HEATER_RESISTANCE_HS'
-        if affected_ratio > 0.8 and flow_drop:
+        if affected_ratio > 0.8 and flow_drop and flow_rate >= 1.0:
             return 'HEATER_POMPE_HS'
-        if affected_ratio > 0.7 and flow_rate < 0.5:
-            return 'NIVEAU_BAS_VANNE_PANNE'
         if flow_rate < 0.7 * nominal_flow and flow_rate > 2.0 and not sudden_drop:
             return 'FUITE_CIRCUIT'
         if delta_T_calcaire_slope > 0.01 and R_squared > 0.5 and affected_ratio < 0.3:

@@ -1,0 +1,454 @@
+% !TEX root = ReportMain.tex
+\chapter{Étude détaillée du projet}
+\markboth{Etude détaill\'ee}{Etude détaillée Projet }
+\newpage
+
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Ce chapitre traite la conception du système. Il traduit les besoins exprimés au chapitre précédent en une architecture complète, d'abord générale, puis détaillée. La première section présente l'architecture globale du système sur trois niveaux. La deuxième détaille l'architecture matérielle, tandis que la troisième présente l'architecture logicielle au moyen de diagrammes UML. Les sections suivantes décrivent les quatre modules du pipeline de traitement : le modèle physique Grey-Box pour l'estimation de l'épaisseur du calcaire, le détecteur d'anomalies non supervisé, le classifieur de causes qui combine règles métier et apprentissage automatique, et le régresseur pour la prédiction de maintenance. Enfin, l'interface utilisateur et le système d'alertes sont présentés.
+
+\section{Architecture globale du système}
+
+\subsection{Architecture à trois niveaux}
+
+Le système suit une architecture à trois niveaux, conforme au modèle de référence de l'IoT industriel. Cette séparation garantit la modularité, l'évolutivité et la maintenabilité.
+
+\textbf{Niveau 1 -- Acquisition physique.} Ce niveau regroupe les capteurs. Six capteurs de température sont interrogés via un bus de terrain industriel, et un débitmètre à effet Hall est lu par interruption matérielle.
+
+\textbf{Niveau 2 -- Traitement et intelligence.} Ce niveau héberge l'ensemble du pipeline de traitement : l'acquisition cyclique, le stockage temporel, les quatre modules de diagnostic (modèle physique, détection d'anomalies, classification des causes, prédiction de maintenance), et l'orchestrateur qui coordonne leur exécution à chaque cycle.
+
+\textbf{Niveau 3 -- Présentation et communication.} Ce niveau assure la visualisation temps réel des données, l'envoi d'alertes et l'interface homme-machine. Les données diagnostiquées sont diffusées aux clients connectés et les notifications sont routées vers les canaux de communication configurés.
+
+\begin{figure}[htbp]
+  \centering
+   \includegraphics[width=0.9\textwidth,height=0.45\textheight,keepaspectratio]{archi-g.png}
+  \caption{Architecture globale du système à trois niveaux}
+\end{figure}
+
+\subsection{Architecture détaillée}
+
+L'architecture détaillée décompose chaque niveau en composants fonctionnels identifiés par leur rôle dans le flux de données.
+
+Au niveau acquisition, le bus de terrain interconnecte les six capteurs de température selon une topologie en bus half-duplex. Chaque capteur possède une adresse unique et les échanges sont sérialisés par un mécanisme d'exclusion mutuelle. Le débitmètre est connecté sur une entrée à capacité d'interruption.
+
+Au niveau traitement, un orchestrateur central exécute la séquence suivante à chaque cycle d'acquisition : lecture des capteurs, mise à jour des historiques glissants, estimation Grey-Box, extraction des caractéristiques, détection d'anomalies, classification des causes, prédiction de maintenance, stockage et diffusion. Chaque module est indépendant et communique avec le suivant par l'intermédiaire de structures de données partagées.
+
+Au niveau présentation, un serveur de diffusion temps réel transmet les données diagnostiquées aux interfaces connectées. Le système d'alertes évalue en continu les seuils de sévérité et déclenche les notifications appropriées.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth,height=0.85\textheight,keepaspectratio]{images/archi_f.png}
+  \caption{Architecture détaillée du système}
+\end{figure}
+
+\subsection{Architecture matérielle}
+
+Le matériel se compose des éléments suivants :
+
+\begin{itemize}
+  \item Une carte de développement ARM 8~Go RAM, cœur du système, exécutant l'intégralité du logiciel embarqué.
+  \item Un convertisseur USB/RS485 faisant l'interface entre la carte et le bus de terrain.
+  \item Six capteurs de température communicants par bus de terrain, placés au niveau des moules.
+  \item Un débitmètre à effet Hall branché sur une entrée numérique avec capacité d'interruption.
+\end{itemize}
+
+Les six capteurs sont répartis en quatre groupes correspondant aux quatre échangeurs thermiques : le premier groupe contient un capteur, le deuxième et le troisième en contiennent deux chacun, le quatrième en contient un.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\textwidth,height=0.55\textheight,keepaspectratio]{images/archi-m.png}
+  \caption{Schéma matériel détaillé}
+\end{figure}
+
+\section{Conception logicielle -- Diagrammes UML}
+
+\subsection{Diagramme de cas d'utilisation}
+
+Le diagramme de la Figure~3.4 présente les acteurs et leurs interactions avec le système. Deux acteurs humains sont identifiés. Le technicien de maintenance consulte la supervision, le diagnostic et les prédictions, et reçoit les alertes. Le chef d'équipe dispose des mêmes accès~; il reçoit en plus les alertes critiques par courriel et configure les seuils sur l'équipement. Deux acteurs système interviennent également~: le bus de terrain fournit les mesures brutes, et l'ordonnanceur déclenche le ré-entraînement périodique des modèles, sans intervention humaine.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][6cm][c]{0.85\textwidth}{\centering\itshape [Figure 3.4 : Diagramme de cas d'utilisation]}}
+  \caption{Diagramme de cas d'utilisation}
+\end{figure}
+
+% MERMAIND: usecase diagram
+% @startuml
+% left to right direction
+% actor "Technicien\nMaintenance" as tech
+% actor "Chef d'équipe" as chef
+% actor "Bus terrain" as bus <<système>>
+% actor "Ordonnanceur" as sched <<système>>
+% rectangle "Système de Supervision" {
+%   usecase "Consulter températures" as UC1
+%   usecase "Visualiser diagnostic" as UC2
+%   usecase "Consulter prédictions" as UC3
+%   usecase "Visualiser actions recommandées" as UC4
+%   usecase "Recevoir alerte Telegram" as UC5
+%   usecase "Recevoir alerte critique (email)" as UC6
+%   usecase "Configurer seuils" as UC7
+%   usecase "Fournir mesures" as UC8
+%   usecase "Ré-entraîner les modèles" as UC9
+% }
+% tech --> UC1
+% tech --> UC2
+% tech --> UC3
+% tech --> UC4
+% tech --> UC5
+% chef --> UC1
+% chef --> UC2
+% chef --> UC3
+% chef --> UC4
+% chef --> UC5
+% chef --> UC6
+% chef --> UC7
+% bus --> UC8
+% sched --> UC9
+% @enduml
+
+\subsection{Diagramme de classes}
+
+Le diagramme de classes de la Figure~3.5 présente la structure statique du logiciel. La classe centrale \texttt{Orchestrator} coordonne les quatre modules de traitement. Chaque module hérite d'une interface commune \texttt{MLModule} définissant les méthodes \texttt{train()} et \texttt{predict()}. Les classes \texttt{ModbusReader} et \texttt{FlowSensor} assurent l'acquisition. La classe \texttt{TimeSeriesDB} encapsule le stockage temporel.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{images/diag_C.png}
+  \caption{Diagramme de classes}
+\end{figure}
+
+\subsection{Diagramme d'activité}
+
+Le diagramme d'activité de la Figure~3.6 modélise le flot de contrôle du pipeline de diagnostic. L'activité commence par l'acquisition des capteurs, suivie de l'estimation Grey-Box. Si le détecteur d'anomalies identifie un comportement anormal, le classifieur de causes est activé ; sinon, l'état est considéré normal. Dans les deux cas, les données sont stockées et diffusées.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox[c][7cm][c]{0.85\textwidth}{\centering\itshape [Figure 3.6 : Diagramme d'activité du pipeline de diagnostic]}}
+  \caption{Diagramme d'activité du pipeline de diagnostic}
+\end{figure}
+
+% MERMAID: activity diagram
+% @startuml
+% start
+% :Acquérir capteurs;
+% :Mettre à jour historiques;
+% :Estimer Grey-Box;
+% :Extraire features IF;
+% if (Anomalie détectée ?) then (oui)
+%   :Appliquer règles physiques (N1);
+%   if (Cause identifiée ?) then (oui)
+%     :Diagnostic = cause;
+%   else (non)
+%     :Classifier par RF (N2);
+%     if (Confiance > seuil ?) then (oui)
+%       :Diagnostic = cause RF;
+%     else (non)
+%       :Diagnostic = indéterminée;
+%     endif
+%   endif
+% else (non)
+%   :Diagnostic = normal;
+% endif
+% :Stocker dans base;
+% :Diffuser via temps réel;
+% :Vérifier alertes;
+% stop
+% @enduml
+
+\subsection{Diagramme de séquence}
+
+Le diagramme de séquence de la Figure~3.7 illustre l'interaction entre les composants lors d'un cycle d'acquisition typique. L'orchestrateur interroge le bus de terrain, reçoit les mesures, les transmet au pipeline, puis stocke et diffuse les résultats.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox[c][6cm][c]{0.85\textwidth}{\centering\itshape [Figure 3.7 : Diagramme de séquence d'un cycle d'acquisition]}}
+  \caption{Diagramme de séquence d'un cycle d'acquisition}
+\end{figure}
+
+% MERMAID: sequence diagram
+% @startuml
+% actor Bus as "Bus Terrain"
+% participant Orch as "Orchestrateur"
+% participant GB as "Grey-Box"
+% participant IF as "Détecteur"
+% participant RF as "Classifieur"
+% participant DB as "Base temporelle"
+% participant UI as "Interface"
+% Bus -> Orch: mesures (1 Hz)
+% Orch -> GB: compute(temp, débit)
+% GB --> Orch: épaisseur, urgence
+% Orch -> IF: extract + predict
+% IF --> Orch: anomalie (oui/non)
+% alt anomalie
+%   Orch -> RF: predict(features)
+%   RF --> Orch: cause, confiance
+% end
+% Orch -> DB: write(sensors, diag)
+% Orch -> UI: broadcast(sensors, diag, pred)
+% @enduml
+
+\subsection{Diagramme d'états}
+
+Le diagramme d'états de la Figure~3.8 modélise les états du système de diagnostic. Partant de l'état \texttt{NORMAL} (aucune anomalie), le système transite vers \texttt{ANOMALIE} lorsqu'une dérive est détectée. Selon la capacité du classifieur à identifier la cause, il aboutit à \texttt{CAUSE\_IDENTIFIEE} ou \texttt{CAUSE\_INDETERMINEE}. Le retour à l'état normal se produit lorsque la température revient dans les seuils acceptables.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Figure 3.8 : Diagramme d'états du diagnostic]}}
+  \caption{Diagramme d'états du diagnostic}
+\end{figure}
+
+% MERMAID: state diagram
+% @startuml
+% [*] --> NORMAL
+% NORMAL --> ANOMALIE: Détection IF
+% ANOMALIE --> CAUSE_IDENTIFIEE: RF confiant
+% ANOMALIE --> CAUSE_INDETERMINEE: RF incertain
+% CAUSE_IDENTIFIEE --> NORMAL: Retour seuils
+% CAUSE_INDETERMINEE --> NORMAL: Retour seuils
+% @enduml
+
+\subsection{Modèle conceptuel des données (MCD)}
+
+Le MCD de la Figure~3.9 décrit la structuration des données persistées. Chaque \texttt{Mesure} est associée à un \texttt{Moule} et un \texttt{Groupe}. Un \texttt{Diagnostic} est émis à chaque cycle et peut référencer une \texttt{Cause} parmi les modes de défaillance. Une \texttt{Prediction} est associée à un groupe et contient l'estimation de durée de vie résiduelle.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][6cm][c]{0.85\textwidth}{\centering\itshape [Figure 3.9 : Modèle conceptuel des données]}}
+  \caption{Modèle conceptuel des données}
+\end{figure}
+
+% MERMAID: MCD
+% @startuml
+% entity Moule {
+%   * group_id: int
+%   * mold_id: int
+%   * nomenclature: text
+% }
+% entity Groupe {
+%   * group_id: int
+%   * heater_label: text
+% }
+% entity Mesure {
+%   * timestamp: datetime
+%   * temperature: float
+%   * flow_lpm: float
+% }
+% entity Diagnostic {
+%   * timestamp: datetime
+%   * cause: text
+%   * confidence: float
+% }
+% entity Prediction {
+%   * timestamp: datetime
+%   * days_remaining: float
+%   * ci_lower: float
+%   * ci_upper: float
+% }
+% Groupe ||--o{ Moule
+% Moule ||--o{ Mesure
+% Moule ||--o{ Diagnostic
+% Groupe ||--o{ Prediction
+% @enduml
+
+\section{Modèle Grey-Box pour l'estimation de l'encrassement}
+
+\subsection{Principe du soft sensing}
+
+Le soft sensing est une technique qui consiste à estimer une grandeur physique difficile à mesurer directement à partir de mesures indirectes disponibles~\cite{bib27}. Dans notre cas, l'épaisseur de calcaire accumulée dans les canalisations est inférée à partir de la température des moules et du débit d'eau, sans capteur dédié.
+
+Le principe repose sur le bilan thermique du circuit. La différence entre la température de consigne de l'échangeur et la température mesurée au moule s'exprime comme la somme de deux contributions :
+
+\begin{equation}
+\Delta T_{\text{mesuré}} = \Delta T_{\text{normal}} + \Delta T_{\text{calcaire}}
+\label{eq:bilan}
+\end{equation}
+
+où \(\Delta T_{\text{normal}}\) représente les pertes thermiques inévitables du circuit (tuyauterie, raccords, échange) déterminées lors de la calibration initiale (tuyaux propres, jour~1), et \(\Delta T_{\text{calcaire}}\) est la perte additionnelle due à l'accumulation de calcaire~\cite{bib22}.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.7\textwidth}{\centering\itshape [Figure 3.10 : Schéma entrées/sorties du modèle Grey-Box]}}
+  \caption{Schéma entrées/sorties du Grey-Box : températures et débit en entrée, épaisseur et urgence en sortie}
+\end{figure}
+
+\subsection{Équations du bilan thermique}
+
+La puissance thermique transportée par l'eau à travers un moule s'écrit :
+
+\begin{equation}
+Q = \dot{m} \cdot C_p \cdot \Delta T_{\text{mesuré}}
+\label{eq:puissance}
+\end{equation}
+
+avec \(\dot{m} = \rho \cdot Q_v\) le débit massique, \(C_p\) la capacité thermique massique de l'eau, et \(\rho\) sa masse volumique.
+
+La résistance thermique de la couche de calcaire est déduite de la loi de Fourier appliquée à une paroi cylindrique~\cite{bib24} :
+
+\begin{equation}
+R_{\text{calcaire}} = \frac{\Delta T_{\text{calcaire}}}{Q}
+\label{eq:resistance}
+\end{equation}
+
+\begin{equation}
+e = R_{\text{calcaire}} \cdot \lambda_{\text{calcaire}} \cdot A_{\text{tube}}
+\label{eq:epaisseur}
+\end{equation}
+
+où \(e\) est l'épaisseur recherchée, \(\lambda_{\text{calcaire}} = 1,0~\text{W}\cdot\text{m}^{-1}\cdot\text{K}^{-1}\) la conductivité thermique du calcaire, et \(A_{\text{tube}} = \pi \times L \times D\) la surface interne du tube de diamètre \(D = 13~\text{mm}\) et de longueur \(L = 3~\text{m}\).
+
+La dégradation relative, exprimée en pourcentage, quantifie la progression de l'encrassement par rapport au seuil critique :
+
+\begin{equation}
+\delta = \min\left(\frac{\Delta T_{\text{calcaire}}}{\Delta T_{\text{max}}} \times 100,~100\right)
+\label{eq:degradation}
+\end{equation}
+
+\subsection{Niveaux d'urgence}
+
+Cinq niveaux d'urgence sont définis en fonction de la température du moule et guident les actions recommandées :
+
+\begin{table}[htbp]
+\centering
+\caption{Niveaux d'urgence du Grey-Box}
+\label{tab:urgence}
+\begin{tabular}{p{0.22\textwidth}p{0.18\textwidth}p{0.50\textwidth}}
+\toprule
+\textbf{Température moule} & \textbf{Niveau} & \textbf{Action} \\
+\midrule
+\(\geq 42,0~\si{\celsius}\) & OK & Aucune \\
+\([41,5~;~42,0[\) & Faible & Surveiller \\
+\([41,0~;~41,5[\) & Moyen & Planifier maintenance \\
+\([40,5~;~41,0[\) & Haute & Intervention sous 48~h \\
+\(< 40,5~\si{\celsius}\) & Urgent & Arrêt et détartrage immédiat \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Détection d'anomalies par Isolation Forest}
+
+\subsection{Principe théorique}
+
+L'Isolation Forest, introduite par Liu~et~al.~(2008)~\cite{bib31}, est un algorithme non supervisé qui détecte les anomalies par partitionnement aléatoire de l'espace des caractéristiques. Son principe repose sur l'observation que les anomalies sont rares et différentes : elles requièrent moins de partitions pour être isolées qu'un point normal.
+
+Formellement, pour un point \(x\), le score d'anomalie est :
+
+\begin{equation}
+s(x, n) = 2^{-\frac{E(h(x))}{c(n)}}
+\label{eq:if_score}
+\end{equation}
+
+où \(E(h(x))\) est la longueur moyenne du chemin d'isolation dans la forêt, \(c(n)\) le facteur de normalisation dépendant de la taille \(n\) de l'échantillon. Un score proche de~1 indique une anomalie, proche de~0 un point normal. Le seuil de décision est fixé à 0,5~: au-delà, une anomalie est déclarée.
+
+\subsection{Caractéristiques utilisées}
+
+Huit caractéristiques sont extraites d'une fenêtre glissante de 30~secondes :
+
+\begin{table}[htbp]
+\centering
+\caption{Caractéristiques extraites pour la détection d'anomalies}
+\label{tab:features_if}
+\begin{tabular}{p{0.30\textwidth}p{0.60\textwidth}}
+\toprule
+\textbf{Caractéristique} & \textbf{Description} \\
+\midrule
+Pente des températures & Coefficient de régression linéaire sur la fenêtre \\
+Variance des températures & Dispersion moyenne intra-moule \\
+Proportion de moules critiques & Ratio de moules sous le seuil d'alerte \\
+Chute brutale & Détection d'une baisse \(>1~\si{\celsius}\) en 2~minutes \\
+Débit moyen & Valeur moyenne du débit sur la fenêtre \\
+Variance du débit & Dispersion du débit \\
+Delta calcaire moyen & Perte thermique moyenne attribuée au calcaire \\
+Autocorrélation à retard 1 & Mesure de la persistance temporelle \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+L'algorithme extrait ces caractéristiques à chaque cycle et les normalise avant soumission au modèle.
+
+\section{Classification des causes -- Approche hybride}
+
+\subsection{Principe à deux niveaux}
+
+La classification des causes suit une approche originale à deux niveaux (notés N1 et N2) qui combine des règles physiques déterministes et un modèle probabiliste :
+
+\begin{itemize}
+  \item \textbf{Niveau~1 (N1) -- Règles physiques} : un ensemble de règles métier codifiées à partir de l'AMDEC examine les caractéristiques observables pour identifier directement certaines causes. Ces règles sont déterministes, rapides et ne nécessitent pas d'entraînement. Elles couvrent les cas les plus typiques : si la proportion de moules affectés est élevée et qu'une chute brutale est observée, la cause est vraisemblablement une panne de pompe ; si le débit est nominal mais que la variance inter-moules est élevée, des bulles d'air sont suspectées.
+  \item \textbf{Niveau~2 (N2) -- Modèle aléatoire (Random Forest)} : lorsque les règles physiques ne permettent pas de conclure (cas ambigus), le Random Forest~\cite{bib32} est sollicité. Il reçoit un vecteur de dix caractéristiques et produit une distribution de probabilité sur les sept classes de défaillance. Si la confiance est suffisante, la cause est retenue ; sinon, la mention \texttt{CAUSE\_INDETERMINEE} est renvoyée.
+\end{itemize}
+
+Cette architecture hiérarchique présente l'avantage de traiter rapidement les cas évidents tout en réservant la puissance du modèle aux situations réellement ambiguës.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Figure 3.11 : Schéma de l'architecture à deux niveaux du classifieur -- règles puis modèle aléatoire]}}
+  \caption{Architecture à deux niveaux du classifieur}
+\end{figure}
+
+\subsection{Règles physiques (Niveau~1)}
+
+Chacune des sept classes de l'AMDEC est associée à un ensemble de règles basées sur des seuils. Par exemple :
+
+\begin{itemize}
+  \item \texttt{HEATER\_RESISTANCE\_HS} : pente négative forte ET proportion de moules affectés élevée ET absence de chute de débit.
+  \item \texttt{HEATER\_POMPE\_HS} : chute brutale de température ET chute brutale de débit ET proportion élevée.
+  \item \texttt{BULLES\_AIR} : variance des températures élevée ET débit nominal ET pas de pente nette.
+  \item \texttt{NIVEAU\_BAS\_VANNE\_PANNE} : débit en baisse ET pente modérée ET proportion modérée.
+  \item \texttt{CALCAIRE\_TUYAUX} : pente très faible ET delta calcaire élevé ET bonne corrélation temporelle.
+  \item \texttt{FUITE\_CIRCUIT} : baisse de débit progressive ET proportion faible à modérée.
+  \item \texttt{ISOLATION\_DEGRADEE} : pente faible ET variance faible ET delta calcaire quasi nul.
+\end{itemize}
+
+Une cause n'est retenue au niveau~1 que si toutes ses conditions sont vérifiées simultanément.
+
+\subsection{Modèle aléatoire (Niveau~2)}
+
+Le modèle aléatoire reçoit un vecteur de dix caractéristiques : les huit de l'Isolation Forest, auxquelles s'ajoutent le coefficient de détermination \(R^2\) de la régression Grey-Box et l'autocorrélation de la température à retard~1. Ces deux ajouts aident à distinguer les dérives lentes (calcaire, isolation) des événements brusques.
+
+Le modèle utilise la méthode de la forêt aléatoire (Random Forest)~\cite{bib32}, qui combine plusieurs arbres de décision entraînés sur des sous-échantillons de données. Chaque arbre produit une classe ; la classe majoritaire est retenue comme prédiction, et la proportion d'arbres ayant voté pour elle constitue le score de confiance.
+
+Les sept classes en sortie sont : \texttt{HEATER\_RESISTANCE\_HS}, \texttt{HEATER\_POMPE\_HS}, \texttt{NIVEAU\_BAS\_VANNE\_PANNE}, \texttt{CALCAIRE\_TUYAUX}, \texttt{BULLES\_AIR}, \texttt{FUITE\_CIRCUIT}, \texttt{ISOLATION\_DEGRADEE}, auxquelles s'ajoute \texttt{CAUSE\_INDETERMINEE} lorsque la confiance minimale (fixée à 0,5) n'est pas atteinte.
+
+\section{Prédiction de maintenance par régression Ridge}
+
+\subsection{Principe}
+
+La prédiction de maintenance consiste à estimer le nombre de jours restants avant que l'épaisseur de calcaire n'atteigne un seuil critique (1,5~mm), au-delà duquel une intervention de détartrage est impérative~\cite{bib26}.
+
+Le modèle utilisé est une régression Ridge, forme régularisée de la régression linéaire qui pénalise les grands coefficients par une norme~\(\ell_2\) pour éviter le sur-apprentissage~\cite{bib33} :
+
+\begin{equation}
+\hat{\beta} = \arg\min_{\beta} \left\| y - X\beta \right\|_2^2 + \alpha \|\beta\|_2^2
+\label{eq:ridge}
+\end{equation}
+
+où \(\alpha\) est le paramètre de régularisation, déterminé par validation croisée.
+
+\subsection{Estimation de l'incertitude par Bootstrap}
+
+Pour fournir un intervalle de confiance sur la prédiction, la méthode du Bootstrap est employée~\cite{bib34}. Mille échantillons sont tirés avec remise dans l'historique d'entraînement. Pour chaque échantillon, un modèle Ridge est entraîné et une prédiction est produite. Les 5\up{ème} et 95\up{ème} centiles de la distribution des mille prédictions forment l'intervalle de confiance à 90\%.
+
+\begin{equation}
+IC_{90\%} = \left[ P_5(\hat{y}_{\text{boot}}),\; P_{95}(\hat{y}_{\text{boot}}) \right]
+\label{eq:bootstrap}
+\end{equation}
+
+\subsection{Fréquence et seuils}
+
+Le modèle est ré-entraîné quotidiennement sur l'historique accumulé. Un minimum de sept jours de données est requis avant la première prédiction. Les caractéristiques du modèle sont l'épaisseur de calcaire estimée par le Grey-Box, le débit moyen, la température moyenne et leur taux de variation sur la période d'observation.
+
+\section{Système d'alertes}
+
+Le système d'alertes évalue en permanence la sévérité de la situation et déclenche des notifications selon trois niveaux :
+
+\begin{itemize}
+  \item \textbf{WARNING} (alerte simple) : température entre 40 et 42~\si{\celsius} -- notification aux opérateurs via le canal principal.
+  \item \textbf{CRITICAL} (critique) : température sous 40~\si{\celsius} ou anomalie confirmée -- notification aux opérateurs et au responsable maintenance.
+  \item \textbf{SYSTEM} (système) : défaillance du bus de terrain, perte de communication -- notification au chef d'équipe.
+\end{itemize}
+
+Chaque alerte signale rapidement le dépassement de seuil~: elle contient la sévérité, la liste des moules affectés avec leur nomenclature et leur température. Le diagnostic complet (cause identifiée, niveau de confiance et actions correctives préconisées par l'AMDEC) n'est pas inclus dans la notification~; il demeure consultable dans l'onglet de diagnostic de l'interface.
+
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+Ce chapitre a présenté l'étude détaillée du système. L'architecture à trois niveaux a été définie, depuis l'acquisition physique jusqu'à la présentation, en passant par le traitement intelligent. Six diagrammes UML ont modélisé les vues statique et dynamique du logiciel. Le modèle Grey-Box a fourni le socle physique du soft sensing de l'encrassement calcaire, tandis que l'Isolation Forest, le classifieur hybride à deux niveaux et la régression Ridge avec Bootstrap constituent la chaîne de diagnostic et de pronostic. L'interface et le système d'alertes complètent la couche de présentation. Le chapitre suivant détaille la réalisation pratique de cette conception : les outils choisis, leur justification, et l'implémentation de chaque module.

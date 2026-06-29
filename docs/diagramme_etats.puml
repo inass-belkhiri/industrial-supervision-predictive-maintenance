@@ -1,0 +1,20 @@
+@startuml
+[*] --> ERREUR : Démarrage\n(sans capteur)
+ERREUR --> OK : 1ère mesure\nvalide
+OK --> ALERTE : Temp < 42°C\n(seuil warning)
+ALERTE --> OK : Temp >= 42°C
+ALERTE --> CRITIQUE : Temp < 40°C\n(seuil critique)
+CRITIQUE --> ALERTE : Temp >= 40°C
+CRITIQUE --> OK : Temp >= 42°C
+OK --> ERREUR : Erreur de\ncommunication
+ALERTE --> ERREUR : Erreur de\ncommunication
+CRITIQUE --> ERREUR : Erreur de\ncommunication
+
+state OK : Température normale\n>= 42°C
+state ALERTE : Température basse\n< 42°C mais >= 40°C
+state CRITIQUE : Température critique\n< 40°C
+state ERREUR : Défaut de\ncommunication Modbus
+
+note right of ALERTE : Envoi alerte WARNING\nTelegram + Email
+note right of CRITIQUE : Envoi alerte CRITICAL\nTelegram + Email\n(urgence prioritaire)
+@enduml

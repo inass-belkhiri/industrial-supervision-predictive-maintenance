@@ -177,6 +177,8 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
     rf_features_list = []
     if_features_list = []
     labels_list = []
+    flow_rate_samples = []
+    flow_drop_samples = []
 
     n_molds = len(all_mold_keys)
 
@@ -237,6 +239,11 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
         # flow_drop_flag
         flow_drop = float(flow_rate < 0.5 * config.FLOW_DEFAULT_LPM)
 
+        # DEBUG: sample flow_rate periodically
+        if len(flow_rate_samples) < 50:
+            flow_rate_samples.append(flow_rate)
+            flow_drop_samples.append(flow_drop)
+
         # drift_R_squared from temps in this window
         all_window_temps = []
         for key in all_mold_keys:
@@ -291,6 +298,10 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
             log.info("  Processed %d windows...", len(if_features_list))
 
     log.info("Total windows extracted: %d", len(if_features_list))
+    if flow_rate_samples:
+        log.info("DEBUG flow_rate sample (first %d): min=%.2f max=%.2f flow_drop_true=%d/%d",
+                 len(flow_rate_samples), min(flow_rate_samples), max(flow_rate_samples),
+                 sum(flow_drop_samples), len(flow_drop_samples))
     return if_features_list, rf_features_list, labels_list
 
 
@@ -414,6 +425,16 @@ def main():
 
     # 2. Build windows
     log.info("Building sliding windows (size=%ds, step=%ds)...", args.window, args.step)
+
+    # DEBUG: flow data stats
+    total_flow_pts = sum(len(v) for v in flow_data.values())
+    all_flow_vals = [v for pts in flow_data.values() for _, v in pts]
+    log.info("DEBUG flow_data: %d groups, %d total points, min=%.2f max=%.2f mean=%.2f",
+             len(flow_data), total_flow_pts,
+             min(all_flow_vals) if all_flow_vals else 0,
+             max(all_flow_vals) if all_flow_vals else 0,
+             float(np.mean(all_flow_vals)) if all_flow_vals else 0)
+
     result = build_windows(temp_data, dT_data, flow_data, args.window, args.step)
     if result is None:
         sys.exit(1)

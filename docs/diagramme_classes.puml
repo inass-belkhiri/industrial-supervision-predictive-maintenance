@@ -1,0 +1,104 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+class SensorReading <<dataclass>> {
+  + group_id: int
+  + mold_id: int
+  + position: str
+  + temperature: Optional[float]
+  + status: str
+  + threshold: float
+  + deviation: Optional[float]
+  + timestamp: str
+}
+
+class GreyBoxModel {
+  - calibration_temps: Dict
+  - delta_T_normal: Dict
+  + set_calibration(gid, mid, T_mold_jour1)
+  + compute(gid, mid, T_mold, flow_lpm): Dict
+  - _classify_urgency(T_mold): str
+}
+
+class AnomalyDetector {
+  - model: IsolationForest
+  - scaler: StandardScaler
+  + extract_features(): ndarray
+  + predict(features): Dict
+  + train(X)
+}
+
+class CauseClassifier {
+  - model: RandomForestClassifier
+  - encoder: LabelEncoder
+  - scaler: StandardScaler
+  + physical_rules(): Dict
+  + predict(features): Dict
+  + train(X, y)
+  - _build_physical_signature(): str
+}
+
+class RidgePredictor {
+  - group_id: int
+  - mold_id: int
+  - delta_T_max: float
+  + fit(records)
+  + predict_maintenance(): Dict
+}
+
+class FlowSensor {
+  - pin: int
+  - k_factor: float
+  - pulse_count: int
+  + read_lpm(): float
+  + close()
+}
+
+class ModbusManager {
+  {static} - _client
+  {static} - _bus_lock
+  {static} + init_modbus()
+  {static} + read_all_sensors(): List[SensorReading]
+  {static} + close_modbus()
+}
+
+class InfluxDBManager {
+  {static} - _client
+  {static} - _write_api
+  {static} + init_influxdb()
+  {static} + write_sensors(readings, delta_T_map)
+  {static} + write_flow(gid, flow_lpm)
+  {static} + query_recent(): Dict
+  {static} + query_daily_mean_mold(): List
+  {static} + close_influxdb()
+}
+
+class Alerting {
+  {static} + send_alert(severity, affected_molds, mold_readings)
+  {static} - _send_telegram()
+  {static} - _send_email()
+}
+
+class MainApp {
+  + TEMP_HISTORY: Dict
+  + FLOW_HISTORY: Dict
+  + latest_sensors: List
+  - _cycle()
+  - _broadcast_all()
+  - _load_calibrations()
+}
+
+MainApp *--> "1" GreyBoxModel
+MainApp *--> "1" AnomalyDetector
+MainApp *--> "1" CauseClassifier
+MainApp *--> "*" RidgePredictor
+MainApp *--> "4" FlowSensor
+MainApp --> ModbusManager : utilise
+MainApp --> InfluxDBManager : utilise
+MainApp --> Alerting : utilise
+MainApp --> SensorReading : crée
+
+GreyBoxModel --> SensorReading : utilise
+ModbusManager --> SensorReading : crée
+
+@enduml

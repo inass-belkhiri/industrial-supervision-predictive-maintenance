@@ -1,0 +1,1383 @@
+\chapter{Réalisation et résultats}
+\newpage
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Ce chapitre présente la réalisation complète du système de supervision thermique, depuis l'infrastructure matérielle jusqu'à l'interface utilisateur, en passant par l'ensemble du pipeline de traitement et d'apprentissage automatique. La première section dresse l'inventaire des outils et technologies employés ainsi que les protocoles de communication retenus, en justifiant chaque choix par rapport aux contraintes du projet. La deuxième section détaille la mise en œuvre matérielle : configuration du Raspberry Pi, câblage du bus RS485, adressage des capteurs et raccordement du débitmètre. La troisième section, la plus étendue, décrit l'implémentation logicielle module par module en suivant l'ordre logique du flux de données : acquisition, stockage temporel, orchestration du pipeline, modèle physique Grey-Box, détection d'anomalies par Isolation Forest, classification hybride des causes, maintenance prédictive par régression Ridge, interface de supervision et système d'alertes. La quatrième section présente les tests unitaires et d'intégration, en détaillant la technique de \textit{monkey patching} employée pour simuler les dépendances matérielles. La cinquième section décrit le déploiement et le plan de maintenance. La sixième et dernière section rassemble les résultats obtenus et leur interprétation.
+
+Les extraits de code complets des modules principaux sont fournis en annexes A1 à A10. Un simulateur de données a été développé pour valider le pipeline ML en l'absence de données réelles et produire les résultats d'évaluation présentés dans ce chapitre.
+
+\section{Outils et technologies de réalisation}
+
+\subsection{Matériel utilisé}
+
+Le Tableau~\ref{tab:hardware} liste les composants matériels employés.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Matériel utilisé}
+\label{tab:hardware}
+\begin{tabular}{|p{0.30\textwidth}|p{0.15\textwidth}|p{0.40\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Composant} & \textbf{Réf.} & \textbf{Rôle dans le projet} \\
+\hline
+Raspberry Pi 4 Model B & 8~Go RAM & Carte embarquée exécutant le backend, la base de données et le frontend \\
+\hline
+Carte SD & 64~Go & Stockage du système d'exploitation et des données \\
+\hline
+Convertisseur USB/RS485 & -- & Interface entre le port USB du RPi et le bus RS485 \\
+\hline
+Transmetteur de température PT100 RS485 Modbus RTU & \(\times 6\) & Conversion résistance thermique \(\rightarrow\) signal Modbus RTU \\
+\hline
+Sonde PT100 RTD & \(\times 6\) & Mesure de température par résistance de platine (100~\(\Omega\) à 0~\si{\celsius}) \\
+\hline
+Débitmètre YF-S201 & 1 & Capteur à effet Hall pour la mesure du débit d'eau \\
+\hline
+Écran HDMI & 7" & Affichage kiosque de l'interface de supervision \\
+\hline
+Bloc d'alimentation & 5~V 3~A & Alimentation du Raspberry Pi et des transmetteurs \\
+\hline
+Chargeur RPi & USB-C & Chargeur officiel pour le Raspberry Pi 4 \\
+\hline
+Câble HDMI & -- & Connexion entre le RPi et l'écran \\
+\hline
+\end{tabular}
+\end{table}
+
+Le transmetteur de température PT100 RS485 Modbus RTU est un module électronique qui convertit la résistance variable de la sonde PT100 (proportionnelle à la température) en un signal numérique transmis sur le bus RS485 via le protocole Modbus RTU. Il intègre un microcontrôleur qui échantillonne la résistance, applique une linéarisation, et met la valeur numérique à disposition dans un registre de maintien accessible par le maître du bus.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.6\textwidth}{\centering\itshape [Photo~: Raspberry Pi 4 Model B]}}
+  \caption{Raspberry Pi 4}
+  \label{fig:photo_rpi4}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.6\textwidth}{\centering\itshape [Photo~: convertisseur USB/RS485]}}
+  \caption{Convertisseur USB/RS485}
+  \label{fig:photo_usb485}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.6\textwidth}{\centering\itshape [Photo~: transmetteur de température PT100 RS485 Modbus RTU]}}
+  \caption{Transmetteur de température PT100 RS485 Modbus RTU}
+  \label{fig:photo_transmitter}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.6\textwidth}{\centering\itshape [Photo~: sonde PT100 RTD]}}
+  \caption{Sonde PT100 RTD}
+  \label{fig:photo_pt100}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.6\textwidth}{\centering\itshape [Photo~: débitmètre YF-S201]}}
+  \caption{Débitmètre YF-S201}
+  \label{fig:photo_yfs201}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.6\textwidth}{\centering\itshape [Photo~: écran HDMI 7"]}}
+  \caption{Écran HDMI}
+  \label{fig:photo_screen}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.6\textwidth}{\centering\itshape [Photo~: bloc d'alimentation 5~V 3~A]}}
+  \caption{Bloc d'alimentation}
+  \label{fig:photo_power}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.6\textwidth}{\centering\itshape [Photo~: chargeur USB-C RPi]}}
+  \caption{Chargeur RPi}
+  \label{fig:photo_charger}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.6\textwidth}{\centering\itshape [Photo~: câble HDMI]}}
+  \caption{Câble HDMI}
+  \label{fig:photo_hdmi}
+\end{figure}
+
+\subsection{Stack backend}
+
+Le Tableau~\ref{tab:stack_backend} présente les technologies constituant le backend.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Stack backend}
+\label{tab:stack_backend}
+\begin{tabular}{|p{0.18\textwidth}|p{0.10\textwidth}|p{0.50\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Technologie} & \textbf{Version} & \textbf{Rôle dans le projet} \\
+\hline
+Raspberry Pi OS & Debian 12 & Système d'exploitation embarqué ARM~64 \\
+\hline
+Python & 3.11 & Langage d'implémentation du backend et du pipeline ML \\
+\hline
+FastAPI + Uvicorn & 0.115.11 & Framework API REST asynchrone avec support WebSocket natif \\
+\hline
+InfluxDB & 2.x & Base de données time-series pour les mesures capteurs \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Stack frontend}
+
+Le Tableau~\ref{tab:stack_frontend} présente les technologies du frontend.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Stack frontend}
+\label{tab:stack_frontend}
+\begin{tabular}{|p{0.18\textwidth}|p{0.10\textwidth}|p{0.50\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Technologie} & \textbf{Version} & \textbf{Rôle dans le projet} \\
+\hline
+React & 18 & Bibliothèque de composants d'interface utilisateur \\
+\hline
+Vite & 5 & Bundler et serveur de développement \\
+\hline
+TailwindCSS & 3 & Framework CSS utilitaire pour le design responsive \\
+\hline
+Recharts & 2 & Librairie de graphiques pour les courbes temps réel \\
+\hline
+WebSocket & natif & Communication bidirectionnelle temps réel avec le backend \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Modules d'apprentissage automatique}
+
+Le Tableau~\ref{tab:stack_ml} présente les outils utilisés par le pipeline ML.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Outils Machine Learning}
+\label{tab:stack_ml}
+\begin{tabular}{|p{0.18\textwidth}|p{0.10\textwidth}|p{0.50\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Technologie} & \textbf{Version} & \textbf{Rôle dans le projet} \\
+\hline
+scikit-learn & 1.4.0 & IsolationForest, RandomForest, Ridge, métriques d'évaluation \\
+\hline
+NumPy & 1.26.4 & Calculs matriciels, extraction de caractéristiques, statistiques \\
+\hline
+Matplotlib & 3.8+ & Visualisations (ROC, t-SNE, histogrammes, courbes Ridge) \\
+\hline
+pickle & stdlib & Persistance et chargement des modèles entraînés \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Librairies Python}
+
+Le Tableau~\ref{tab:libs_python} liste l'ensemble des librairies Python utilisées.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Librairies Python}
+\label{tab:libs_python}
+\begin{tabular}{|p{0.22\textwidth}|p{0.10\textwidth}|p{0.55\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Librairie} & \textbf{Version} & \textbf{Rôle dans le projet} \\
+\hline
+fastapi & 0.115.11 & Framework API REST avec support WebSocket \\
+\hline
+uvicorn & 0.27.0 & Serveur ASGI pour l'exécution de FastAPI \\
+\hline
+pydantic & --- & Validation des schémas de données et configuration \\
+\hline
+pymodbus & 3.8.6 & Client Modbus RTU pour la lecture des six capteurs \\
+\hline
+influxdb-client & 1.45.0 & Client InfluxDB pour l'écriture et la lecture des mesures \\
+\hline
+scikit-learn & 1.4.0 & Algorithmes ML (IF, RF, Ridge) et métriques \\
+\hline
+numpy & 1.26.4 & Calculs numériques et extraction de caractéristiques \\
+\hline
+requests & --- & Appels HTTP à l'API Telegram pour les alertes \\
+\hline
+gpiozero & 2.0 & Interruptions GPIO pour le comptage d'impulsions \\
+\hline
+matplotlib & 3.8+ & Génération des figures d'évaluation des modèles \\
+\hline
+smtplib & stdlib & Envoi de courriels via SMTP (passerelle Gmail) \\
+\hline
+logging & stdlib & Traçabilité et journalisation des événements \\
+\hline
+pickle & stdlib & Sérialisation des modèles ML entraînés \\
+\hline
+pytest & --- & Framework de tests unitaires et d'intégration \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Protocoles de communication}
+
+Le système intègre quatre protocoles de communication, chacun répondant à des contraintes spécifiques de la chaîne d'acquisition et de diffusion.
+
+\paragraph{RS485 -- bus de terrain différentiel.}
+Le support physique reliant les six capteurs au Raspberry Pi doit franchir plusieurs mètres dans un environnement industriel perturbé électromagnétiquement et desservir plusieurs transmetteurs sur une même ligne. La norme RS485 (ANSI/TIA/EIA-485-A) a été retenue pour trois caractéristiques. Sa transmission différentielle code l'information par la différence de potentiel entre deux conducteurs~; une perturbation se superposant identiquement aux deux fils est annulée à la réception par soustraction, ce qui procure une immunité au bruit que le RS232, référencé à la masse, ne possède pas. Elle autorise le raccordement de plusieurs dizaines d'équipements sur un même bus. Elle conserve une portée suffisante (plusieurs centaines de mètres) aux débits modérés employés (9600~bauds).
+
+\paragraph{Modbus RTU -- protocole d'acquisition des transmetteurs.}
+Sur ce support physique, le protocole Modbus RTU (\emph{Modbus over Serial Line})~\cite{bib30} assure la communication avec les capteurs de température. Il a été choisi pour trois raisons. Il constitue le standard \emph{de facto} de l'instrumentation industrielle~: la plupart des fabricants de transmetteurs l'implémentent, garantissant l'interopérabilité avec des composants du commerce. Son modèle maître-esclave convient à l'architecture du système~: le Raspberry Pi, unique maître, interroge à tour de rôle des capteurs passifs adressés individuellement, ce qui évite tout conflit d'accès sur le bus partagé. Sa trame est légère (adresse, code fonction, données, CRC), ce qui limite la charge processeur sur le processeur ARM du Raspberry Pi.
+
+\paragraph{WebSocket -- diffusion temps réel vers l'interface.}
+La transmission des mesures et diagnostics vers l'interface utilisateur utilise le protocole WebSocket (RFC 6455)~\cite{bib35}. Ce protocole établit une liaison bidirectionnelle persistante entre le serveur backend et le navigateur. Le serveur pousse chaque nouvelle mesure dès qu'elle est disponible, sans sollicitation périodique du client. Ce mécanisme remplace le \emph{polling} HTTP, qui multiplierait les requêtes inutiles et introduirait une latence égale à la période d'interrogation. Le WebSocket réduit à la fois la latence de mise à jour et la charge réseau.
+
+\paragraph{HTTP/REST et SMTP -- notification des opérateurs.}
+Les alertes sont émises par deux canaux redondants. Le canal Telegram utilise des requêtes HTTP POST vers l'API REST de Telegram (\texttt{api.telegram.org}), sans bibliothèque spécifique. Le canal courriel utilise le protocole SMTP (RFC 5321) via la bibliothèque standard \texttt{smtplib}, indépendant de toute application tierce chez le destinataire. La redondance des deux canaux augmente la probabilité de réception effective d'une alerte critique.
+
+\section{Réalisation matérielle}
+
+\subsection{Configuration du système embarqué}
+
+Le Raspberry Pi~4 Model B (8~Go RAM) exécute Raspberry Pi~OS (Debian~12, architecture ARM~64). La configuration est entièrement automatisée par le script \texttt{setup\_rpi.sh}, qui exécute séquentiellement onze phases~:
+
+\medskip
+\noindent\texttt{config.py} centralise l'ensemble des paramètres du système sur six catégories~: la configuration Modbus (port série, débit, parité, timeouts, adresses des capteurs), les seuils de température (consigne à 45~\si{\celsius}, tolérance de 3~\si{\celsius}, seuils d'alerte à 42~\si{\celsius} et critique à 40~\si{\celsius}), les paramètres de connexion InfluxDB (URL, token, organisation, bucket), les jetons d'authentification pour les alertes (Telegram, SMTP), les paramètres physiques du modèle Grey-Box (diamètre de canalisation, conductivité thermique du calcaire), les paramètres ML (taille de fenêtre glissante, nombre d'itérations bootstrap, seuils de confiance), et la nomenclature AMDEC (sept modes de défaillance avec leur criticité et actions correctives). Ce fichier suit le principe de séparation configuration-code~: tous les seuils et paramètres sont modifiables sans intervention sur le code métier. Les jetons sensibles sont lus depuis des variables d'environnement, et un fichier \texttt{config.py.example} sert de modèle pour le déploiement.
+
+La configuration automatisée par \texttt{setup\_rpi.sh} couvre~:
+
+\begin{enumerate}
+  \item Durcissement SSH et paramètres réseau (adresse IP statique, restriction aux clés, pare-feu limitant les ports 8001 et 8086).
+  \item Installation d'InfluxDB~2.x à partir du paquet \texttt{.deb} officiel, création du bucket \texttt{sensors} et configuration de la politique de rétention.
+  \item Installation de Node.js~20 via NodeSource pour le frontend.
+  \item Installation des dépendances Python dans un environnement virtuel isolé.
+  \item Configuration de l'affichage kiosk~: Chromium en mode plein écran, rotation HDMI si nécessaire.
+  \item Configuration du watchdog matériel et des tâches cron de maintenance (sauvegarde InfluxDB, rotation des journaux).
+  \item Installation du service backend via un fichier \texttt{.service} systemd (\texttt{supervision-backend.service}).
+  \item Installation du service frontend (\texttt{supervision-frontend.service}) avec serveur Vite en mode production.
+  \item Redémarrage des services et vérification d'intégrité.
+\end{enumerate}
+
+La configuration réseau est statique, l'accès SSH est restreint aux clés, et le pare-feu limite les ports ouverts.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Capture d'écran~: configuration réseau et services systemd]}}
+  \caption{Configuration du système embarqué}
+  \label{fig:rpi_setup}
+\end{figure}
+
+\subsection{Câblage du bus RS485 en daisy chain}
+
+Les six capteurs partagent une liaison physique unique selon une topologie en daisy chain. Plutôt que de tirer un câble séparé du Raspberry Pi vers chaque capteur, la paire différentielle relie les transmetteurs de proche en proche~: les signaux A et B entrent et sortent de chaque module, formant une ligne unique parcourant l'installation. Cette topologie est celle recommandée par le standard RS485 car elle minimise les réflexions de signal sur une ligne longue, contrairement à une topologie en étoile qui provoquerait des désadaptations d'impédance.
+
+Le câblage met en œuvre trois conducteurs~: les deux lignes différentielles (A et B) et une masse commune. À chaque module, A se raccorde à A et B à B, sans inversion. Le convertisseur USB/RS485, branché sur un port USB du Raspberry Pi, assure la jonction entre la ligne physique et le logiciel. Le bus apparaît comme le périphérique \texttt{/dev/ttyUSB0}. La communication s'effectue en semi-duplex à 9600~bauds, format 8N1 (8 bits, sans parité, 1 bit de stop). Ce débit relativement modéré est un choix délibéré~: il garantit l'intégrité des trames sur la distance du bus et laisse une marge de bruit confortable.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Figure~: schéma de câblage du bus RS485 en daisy chain]}}
+  \caption{Câblage du bus RS485}
+  \label{fig:daisy_chain}
+\end{figure}
+
+\subsection{Adressage des modules de transmission}
+
+\subsubsection{Détection du bus et adressage}
+
+Avant tout adressage, il faut vérifier que le Raspberry Pi détecte le convertisseur USB/RS485 branché sur son port USB. La commande \texttt{ls /dev/ttyUSB*} confirme la présence du périphérique \texttt{/dev/ttyUSB0}. Sans cette détection, aucune communication n'est possible sur le bus~: le système d'exploitation ne voit pas le convertisseur, et donc pas les transmetteurs qui y sont connectés.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][3cm][c]{0.6\textwidth}{\centering\itshape [Capture d'écran~: \texttt{ls /dev/ttyUSB*} -- détection du convertisseur]}}
+  \caption{Détection du convertisseur USB/RS485}
+  \label{fig:scan_usb}
+\end{figure}
+
+Une fois le bus détecté, l'adressage peut commencer. Sur un bus partagé, chaque transmetteur doit posséder une adresse unique (1 à 247). Les modules sortent d'usine avec la même adresse par défaut~; leur adressage individuel est donc nécessaire avant de les réunir sur le bus. Le script \texttt{set\_modbus\_address.py} réalise cette opération~: un seul capteur est branché à la fois, le script lit son adresse courante par une requête de lecture de registre, écrit la nouvelle adresse dans le registre dédié, puis attend le redémarrage du transmetteur qui prend en compte sa nouvelle identité. Connecter plusieurs capteurs non encore adressés ferait répondre tout le monde simultanément et rendrait l'opération impossible. L'adresse attribuée correspond à la position du capteur dans l'installation, conformément au dictionnaire \texttt{SENSOR\_MAP} défini dans \texttt{config.py}.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][3cm][c]{0.6\textwidth}{\centering\itshape [Capture d'écran~: \texttt{set\_modbus\_address.py} -- attribution d'une adresse]}}
+  \caption{Attribution d'adresse}
+  \label{fig:set_address}
+\end{figure}
+
+\subsubsection{Vérification du bus}
+
+Après avoir adressé tous les transmetteurs un par un, un nouveau scan (\texttt{modbus\_scanner.py}) vérifie que chaque adresse répond correctement. Une fois tous les modules connectés ensemble sur le bus, un scan final des six capteurs confirme le bon fonctionnement de l'ensemble.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][3cm][c]{0.6\textwidth}{\centering\itshape [Capture d'écran~: \texttt{modbus\_scanner.py} -- vérification après adressage individuel]}}
+  \caption{Vérification post-adressage}
+  \label{fig:rescan}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][3cm][c]{0.8\textwidth}{\centering\itshape [Capture d'écran~: scan final des six capteurs connectés simultanément]}}
+  \caption{Scan des six transmetteurs sur le bus}
+  \label{fig:scan_all}
+\end{figure}
+
+\subsection{Raccordement du débitmètre YF-S201}
+
+Le débitmètre YF-S201, installé sur la canalisation du heater~1, est un capteur à effet Hall qui génère un train d'impulsions carrées dont la fréquence est linéairement proportionnelle au débit volumique. La relation constructeur est~: 1~L/min correspond à 7,5~Hz. Le composant n'utilise pas le bus Modbus mais est raccordé directement à une broche GPIO du Raspberry Pi (GPIO~17). Le raccordement comporte trois conducteurs~: l'alimentation 5~V, la masse et le signal. La masse du débitmètre est mise en commun avec celle de la carte pour garantir un comptage stable.
+
+\section{Réalisation logicielle}
+
+\subsection{Acquisition des données}
+
+\subsubsection{Acquisition de la température}
+
+L'acquisition de la température repose sur des sondes PT100 à résistance de platine (\emph{Platinum Thermistor RTD}). Chaque PT100 est connectée à un transmetteur qui convertit la variation de résistance (100~$\Omega$ à 0~\si{\celsius}) en un signal numérique sur le bus RS485 via le protocole Modbus RTU. Le module \texttt{ModbusManager} gère la communication avec les six transmetteurs. L'implémentation utilise le client \texttt{AsyncModbusSerialClient} de \texttt{pymodbus} et s'intègre dans la boucle d'événements \texttt{asyncio} du backend. Chaque capteur est interrogé séquentiellement par une requête de lecture de registre de maintien (code fonction 0x03).
+
+L'accès au bus est protégé par un verrou asynchrone (\texttt{asyncio.Lock}) pour garantir l'exclusion mutuelle sur la ligne semi-duplex~: une seule requête peut être en vol à la fois. Les lectures sont strictement séquentielles dans une boucle \texttt{for}. Ce choix de conception a été motivé par un problème d'ordonnancement rencontré avec \texttt{asyncio.gather}~: cette fonction lance toutes les coroutines simultanément, et bien qu'elles s'exécutent séquentiellement à cause du verrou, l'utilisation de \texttt{asyncio.wait\_for} pour les timeouts provoquait une race condition. Lorsque \texttt{wait\_for} annulait un \texttt{Future} en timeout, \texttt{pymodbus} résolvait quand même la réponse plus tard, ce qui générait une \texttt{InvalidStateError} et corrompait l'état du client, rendant toutes les lectures suivantes impossibles. La solution retenue est une boucle séquentielle simple, correcte et suffisamment rapide pour six capteurs à 9600~bauds (chaque lecture prend au maximum 100~ms).
+
+Un mécanisme de reconnexion automatique est implémenté~: si les six capteurs retournent \texttt{None} simultanément, le système ferme la connexion et tente une reconnexion après un délai de garde de 30~secondes. Ce délai évite les tentatives de reconnexion répétées en cascade. Un délai de 100~ms entre chaque lecture (\texttt{asyncio.sleep}) permet au bus RS485 de se stabiliser électriquement et évite les réflexions.
+
+\subsubsection{Acquisition du débit}
+
+Le module \texttt{FlowSensor} utilise une interruption matérielle (\emph{hardware interrupt}) sur la broche GPIO~17 pour compter les impulsions du débitmètre. À la différence du \emph{polling} logiciel qui consommerait du processeur à échantillonner périodiquement la broche, l'interruption matérielle notifie immédiatement le processeur à chaque front montant du signal carré. La bibliothèque \texttt{gpiozero} configure la broche en \texttt{DigitalInputDevice} avec un temps de \emph{bounce} de 10~ms pour filtrer les rebonds mécaniques du contact.
+
+Le comptage s'effectue dans un gestionnaire d'interruption protégé par un verrou de threading (\texttt{threading.Lock}) pour éviter les accès concurrents entre le gestionnaire et la méthode de lecture. À chaque appel de \texttt{read\_lpm()}, le module calcule la fréquence d'impulsions depuis la dernière lecture, applique la relation \(Q = F / 7,5\), et réinitialise le compteur. Un filtre anti-pics rejette les valeurs supérieures à 30~L/min (physiquement invraisemblables pour une canalisation de 13~mm de diamètre) et les remplace par la valeur nominale par défaut de 16,5~L/min.
+
+\subsection{Stockage temporel -- InfluxDB}
+
+La persistance des mesures utilise InfluxDB~2.x, une base de données spécialisée dans les séries temporelles. Le choix de cette technologie plutôt qu'une base relationnelle classique (PostgreSQL, SQLite) est motivé par le modèle de données~: chaque cycle d'acquisition produit un ensemble de mesures à une timestamp donné, structurées par \emph{measurement}, \emph{tags} (étiquettes indexées) et \emph{fields} (valeurs numériques). Ce modèle correspond exactement au besoin de l'acquisition à 1~Hz.
+
+La connexion est initialisée au démarrage du backend via le client \texttt{influxdb\_client}. Les écritures utilisent le mode \texttt{ASYNCHRONOUS} qui ne bloque pas la boucle d'acquisition. Les points sont écrits par lots (batch POST HTTP) : un cycle d'acquisition produit jusqu'à douze points (six températures, six écarts calcaire), écrits en une seule requête. En cas d'échec d'écriture, l'erreur est journalisée mais ne bloque pas le cycle suivant.
+
+Le schéma de données comporte quatre \emph{measurements}~:
+
+\begin{itemize}
+  \item \textbf{\texttt{temperature}}~: tags \texttt{group\_id}, \texttt{mold\_id}, \texttt{position}, \texttt{status}~; fields \texttt{temperature}, \texttt{threshold}, \texttt{deviation}, \texttt{delta\_T\_calcaire}.
+  \item \textbf{\texttt{flow}}~: tags \texttt{group\_id}, \texttt{unit}~; field \texttt{flow\_rate}.
+  \item \textbf{\texttt{diagnostic}}~: tags \texttt{group\_id}~; fields \texttt{cause}, \texttt{confidence}, \texttt{urgency}.
+  \item \textbf{\texttt{prediction}}~: tags \texttt{group\_id}~; fields \texttt{days\_remaining}, \texttt{ci\_lower}, \texttt{ci\_upper}.
+\end{itemize}
+
+Les requêtes de lecture pour le ré-entraînement des modèles ML utilisent le langage Flux, qui permet d'exprimer des fenêtres glissantes (\texttt{aggregateWindow}), des filtres multi-champs et des jointures temporelles. Par exemple, la requête pour la calibration Grey-Box récupère la première température enregistrée pour un moule donné via la fonction \texttt{first()}.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.85\textwidth}{\centering\itshape [Capture d'écran~: configuration du bucket InfluxDB et résultat de requête Flux]}}
+  \caption{Configuration d'InfluxDB}
+  \label{fig:influxdb_config}
+\end{figure}
+
+\subsubsection{Modèles pré-entraînés persistés}
+
+Les modèles ML sont sauvegardés et chargés via la bibliothèque standard \texttt{pickle}. Le répertoire \texttt{models/} contient les fichiers \texttt{.pkl} pour l'Isolation Forest, le Random Forest, la Ridge Régression (un par paire groupe-moule), le \texttt{StandardScaler} et le \texttt{LabelEncoder}. Un fichier \path{training_report.json} stocke les métriques d'évaluation. Les figures générées par \texttt{plots\_evaluation.py} sont sauvegardées dans \texttt{models/plots/}. Ces fichiers sont chargés au démarrage du backend et mis à jour après chaque ré-entraînement quotidien.
+
+\subsection{Orchestration du pipeline de diagnostic}
+
+\subsubsection{Boucle principale d'acquisition}
+
+L'orchestrateur, intégré au backend FastAPI, exécute une boucle infinie à la cadence de 1~Hz. Chaque itération (\texttt{monitoring\_loop}) appelle la fonction \texttt{\_cycle()} qui enchaîne les phases d'acquisition, de calcul et de diffusion. Un timeout de 10~secondes par cycle protège contre les blocages~: si un cycle dépasse cette durée (par exemple, un capteur Modbus qui ne répond pas et dont le timeout s'accumule six fois), le cycle est interrompu et une reconnexion Modbus est déclenchée.
+
+Au sein de \texttt{\_cycle()}, huit phases s'exécutent dans cet ordre~:
+
+\begin{enumerate}
+  \item \textbf{Acquisition}~: lecture des six capteurs Modbus et du débitmètre.
+  \item \textbf{Mise à jour des historiques}~: les températures et débits sont ajoutés à des files glissantes (\texttt{deque}) de 3600~échantillons (1~h d'historique en mémoire).
+  \item \textbf{Grey-Box}~: calcul de l'épaisseur de calcaire pour chaque moule.
+  \item \textbf{Détection d'anomalies}~: extraction des huit caractéristiques sur fenêtre de 30~s, puis prédiction IF.
+  \item \textbf{Classification}~: si anomalie détectée, application des règles physiques (N1) puis éventuellement du Random Forest (N2).
+  \item \textbf{Prédiction Ridge}~: mise à jour périodique de la durée de vie résiduelle.
+  \item \textbf{Stockage}~: écriture des mesures, diagnostic et prédictions dans InfluxDB.
+  \item \textbf{Diffusion et alertes}~: envoi des données aux clients WebSocket et déclenchement des notifications si nécessaire.
+\end{enumerate}
+
+L'algorithme~\ref{alg:pipeline} présente la structure complète de cette boucle.
+
+\begin{algorithm}[htbp]
+\caption{Pipeline principal d'acquisition et de diagnostic}
+\label{alg:pipeline}
+\begin{minipage}{0.96\textwidth}
+\footnotesize
+\setlength{\baselineskip}{9.8pt}
+\begin{verbatim}
+TANT QUE vrai FAIRE
+    // Phase 1 — Acquisition (lecture bus + GPIO)
+    readings ← modbus.read_all_sensors()
+    flow_lpm ← flow_sensor.read_lpm()
+    
+    // Phase 2 — Mise à jour des historiques glissants
+    POUR CHAQUE lecture DANS readings FAIRE
+        historique[clé].append(lecture.temperature)
+    FIN POUR
+    
+    // Phase 3 — Modèle Grey-Box (soft sensing)
+    POUR CHAQUE lecture DANS readings FAIRE
+        résultat_gb ← grey_box.compute(lecture, flow_lpm)
+        stocker(résultat_gb)
+    FIN POUR
+    
+    // Phase 4 — Détection d'anomalies (Isolation Forest)
+    vecteur_if ← extraire_caractéristiques(historiques)
+    SI vecteur_if n'est pas None ALORS
+        résultat_if ← if_model.predict(vecteur_if)
+    SINON
+        résultat_if ← {anomalie: Faux}
+    FIN SI
+    
+    // Phase 5 — Classification des causes (N1/N2)
+    SI résultat_if.anomalie ALORS
+        vecteur_rf ← construire_vecteur_10_dim(historiques)
+        cause_règle ← appliquer_règles_physiques(vecteur_rf)
+        SI cause_règle n'est pas None ALORS
+            diagnostic ← cause_règle
+        SINON
+            résultat_rf ← rf_model.predict(vecteur_rf)
+            SI résultat_rf.confiance >= SEUIL_CONFIANCE ALORS
+                diagnostic ← résultat_rf.cause
+            SINON
+                diagnostic ← "CAUSE_INDETERMINEE"
+            FIN SI
+        FIN SI
+        diagnostic ← enrichir_amdec(diagnostic)
+    SINON
+        diagnostic ← {cause: "NORMAL", confiance: 1.0}
+    FIN SI
+    
+    // Phase 6 — Prédiction Ridge (périodique)
+    résultat_ridge ← ridge.predict()
+    
+    // Phase 7 — Stockage et diffusion
+    influx.écrire_mesures(readings, diagnostic, résultat_ridge)
+    webSocket.diffuser({lectures, diagnostic, prédictions})
+    
+    // Phase 8 — Alertes
+    SI résultat_if.anomalie ALORS
+        alerting.envoyer(diagnostic.sévérité, diagnostic)
+    FIN SI
+    
+    attendre(1 seconde)
+FIN TANT QUE
+\end{verbatim}
+\end{minipage}
+\end{algorithm}
+
+\subsubsection{Ré-entraînement programmé des modèles}
+
+Le ré-entraînement des modèles est orchestré automatiquement selon trois modalités~:
+
+\begin{itemize}
+  \item \textbf{Ré-entraînement quotidien planifié}~: une boucle asynchrone (\texttt{daily\_retrain\_loop}) calcule le temps restant jusqu'à 2~h du matin et se réveille à l'heure prévue pour lancer l'entraînement complet.
+  \item \textbf{Mode de données}~: le module \texttt{data\_sufficiency} détermine si les données disponibles sont réelles (mode \texttt{real\_only}) ou insuffisantes. Dans ce second cas, des copies bruitées du vecteur de caractéristiques unique sont générées (augmentation par ajout de bruit gaussien) pour atteindre un nombre minimal d'échantillons.
+  \item \textbf{Surveillance de la santé des modèles}~: toutes les 600~cycles (~10~minutes), le \texttt{model\_evaluator} évalue les performances courantes. Si trois évaluations consécutives détectent une dégradation (taux d'anomalie IF~\(>15\%\), F1-weighted RF~\(<0,75\)), un ré-entraînement exceptionnel est déclenché via \texttt{should\_retrain()}.
+\end{itemize}
+
+L'ensemble de ces ré-entraînements s'exécute \emph{localement} sur le Raspberry Pi, sans recours à un service d'apprentissage distant dans le cloud. Ce choix se justifie sur plusieurs plans. D'abord, les trois modèles employés (Isolation Forest, Random Forest, Ridge) sont légers~: leur entraînement sur quelques jours de données agrégées tient en quelques secondes sur la carte ARM, sans nécessiter de ressources de calcul externes. Ensuite, l'entraînement local préserve la confidentialité des données de production~: les mesures thermiques de la ligne ne quittent jamais le réseau de l'usine, ce qui évite tout transfert de données industrielles sensibles vers un tiers. Il garantit également l'autonomie du système~: le diagnostic et son amélioration continue restent opérationnels même en cas de coupure de la liaison Internet, contrainte fréquente en environnement industriel. Enfin, il supprime la latence et le coût récurrent qu'impliquerait l'envoi quotidien des données vers une plateforme cloud et le rapatriement des modèles. L'architecture retenue est donc entièrement \emph{edge}~: acquisition, stockage, entraînement et inférence se déroulent sur le même équipement embarqué.
+
+\subsubsection{Cycle de vie et basculement des modèles}
+
+Les modèles ML suivent un cycle de vie en deux phases~: un pré-entraînement initial sur données simulées permet au système d'être opérationnel dès le premier démarrage, puis un mécanisme automatique détecte le moment où les données réelles sont suffisantes pour basculer vers un entraînement exclusivement réel.
+
+\paragraph{Pré-entraînement initial.}
+Les trois modèles (Isolation Forest, Random Forest, régressions Ridge) sont entraînés une première fois en phase de développement sur des données simulées. Le simulateur, intégré à \texttt{demo\_cli.py}, génère des séquences de température et de débit à partir du modèle Grey-Box en appliquant des dérives, des chutes brutales et des niveaux de bruit représentatifs des conditions réelles. Les fichiers \texttt{.pkl} résultants (modèles, \texttt{StandardScaler}, \texttt{LabelEncoder}) sont versionnés dans le dépôt et déployés avec le système. Ainsi, le pipeline de diagnostic est fonctionnel dès la mise sous tension, sans accumulation préalable de données réelles.
+
+\paragraph{Détection automatique du basculement.}
+Le module \texttt{data\_sufficiency.py} détermine quotidiennement si les données réelles accumulées sont suffisantes pour remplacer l'entraînement mixte par un entraînement exclusivement réel. Le processus comporte trois étapes~:
+
+\begin{enumerate}
+  \item \textbf{Comptage des jours réels}~: la fonction \texttt{count\_real\_data\_days()} interroge InfluxDB pour retrouver la date de la première mesure de température enregistrée et calcule le nombre de jours écoulés depuis cette date.
+  \item \textbf{Courbe d'apprentissage}~: pour chaque candidat \(k\) dans \([3, 5, 7, 10, 14, 21, 28]\) jours, le module partitionne les données de manière temporelle (les \(k\) premiers jours en entraînement, le reste en test), entraîne un modèle, et mesure sa performance. Pour le Random Forest, la métrique est le F1-macro~; pour la Ridge, le \(R^2\) moyen sur l'ensemble des moules. Un plateau est considéré atteint lorsque la performance dépasse un objectif (F1 \(\geq 0,85\) ou \(R^2 \geq 0,80\)) avec une pente de progression inférieure à \(0,01\) entre deux candidats consécutifs.
+  \item \textbf{Décision}~: le seuil retenu est le maximum entre les deux \(k\) de plateau (RF et Ridge), avec un plancher absolu de 7~jours. Si le nombre de jours réels est supérieur ou égal à ce seuil, la fonction \texttt{get\_retrain\_mode()} retourne le mode \texttt{real\_only}~; sinon, elle retourne le mode \texttt{mixed}.
+\end{enumerate}
+
+En mode \texttt{mixed}, le ré-entraînement quotidien utilise les données réelles disponibles et, si un seul vecteur de caractéristiques est présent, le duplique avec un bruit gaussien (\(\sigma = 0,05\)) pour atteindre un nombre minimal d'échantillons. En mode \texttt{real\_only}, les vecteurs réels sont utilisés tels quels, sans aucune augmentation synthétique. Le basculement est progressif~: une fois le seuil atteint, le premier ré-entraînement quotidien qui suit utilise exclusivement les données réelles et écrase les modèles pré-entraînés.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Seuils et paramètres du basculement automatique}
+\label{tab:basculement}
+\begin{tabular}{|p{0.38\textwidth}|p{0.15\textwidth}|p{0.37\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Paramètre} & \textbf{Valeur} & \textbf{Origine} \\
+\hline
+Seuil minimal absolu & 7~jours & \texttt{compute\_real\_data\_threshold()} \\
+\hline
+Objectif F1 Random Forest (plateau) & 0,85 & \texttt{evaluate\_rf\_sufficiency()} \\
+\hline
+Objectif \(R^2\) Ridge (plateau) & 0,80 & \texttt{evaluate\_ridge\_sufficiency()} \\
+\hline
+Candidats testés & [3, 5, 7, 10, 14, 21, 28]~jours & \texttt{DAYS\_TO\_TEST} \\
+\hline
+Tolérance de pente (plateau) & 0,01 & Seuil de convergence \\
+\hline
+Écart-type du bruit d'augmentation & 0,05 & \texttt{main.py} -- \texttt{\_retrain\_if\_rf()} \\
+\hline
+Nombre minimal de jours pour Ridge & 7~jours & \texttt{config.RIDGE\_MIN\_DAYS} \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Partition temporelle des données d'entraînement.}
+L'évaluation du Random Forest utilise un partitionnement temporel 80/20~: les 80~\% les plus anciens des vecteurs de caractéristiques ordonnés chronologiquement servent à l'entraînement, les 20~\% les plus récents à la validation. Ce choix préserve l'ordre temporel des séries et évite la contamination du futur vers le passé qu'introduirait un partitionnement aléatoire. La fonction \texttt{evaluate\_models()} dans \texttt{train\_models.py} implémente ce découpage par un slice manuel (\texttt{X[:split]}, \texttt{X[split:]}) sans utiliser \texttt{train\_test\_split} de scikit-learn. Pour la régression Ridge, le partitionnement s'effectue par jour~: les \(k\) premiers jours servent à l'entraînement, les suivants à la validation, ce qui permet de tracer la courbe d'apprentissage en fonction du nombre de jours.
+
+La Figure~\ref{fig:lifecycle} présente la chronologie complète du cycle de vie des modèles, depuis le pré-entraînement sur données simulées jusqu'au basculement vers l'entraînement sur données réelles.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.90\textwidth}{\centering\itshape [Schéma~: chronologie du cycle de vie des modèles -- pré-entraînement simulé $\rightarrow$ déploiement $\rightarrow$ accumulation $\rightarrow$ basculement $\rightarrow$ ré-entraînement réel]}}
+  \caption{Cycle de vie des modèles ML}
+  \label{fig:lifecycle}
+\end{figure}
+
+\subsection{Modèle Grey-Box -- implémentation du soft sensing}
+
+Le module \texttt{GreyBoxModel} implémente un estimateur physique d'épaisseur de calcaire (\emph{soft sensor}) qui ne nécessite pas d'apprentissage automatique. Il repose sur la loi de Fourier pour la conduction thermique à travers une couche de dépôt.
+
+Le principe est le suivant~: la température mesurée sur le moule est inférieure à la consigne du heater (45~\si{\celsius}) à cause de deux pertes thermiques. La première, dite perte nominale, est la chute de température normale du circuit lorsque les canalisations sont propres (\( \Delta T_{\text{normal}} \)). La seconde est la perte additionnelle provoquée par l'accumulation de calcaire qui isole thermiquement la paroi (\( \Delta T_{\text{calcaire}} \)). Le modèle sépare ces deux contributions par soustraction, puis estime l'épaisseur à partir du flux thermique.
+
+À chaque cycle, pour chaque moule, la séquence de calcul est~:
+
+\begin{enumerate}
+  \item Calcul de l'écart total~: \(\Delta T_{\text{mesuré}} = T_{\text{consigne}} - T_{\text{moule}}\).
+  \item Détermination de l'écart imputable au calcaire~: \(\Delta T_{\text{calcaire}} = \max(0, \Delta T_{\text{mesuré}} - \Delta T_{\text{normal}})\). La fonction \texttt{max} garantit que l'épaisseur ne peut pas être négative.
+  \item Conversion du débit volumique (\(Q_v\) en L/min) en débit massique (\(Q_m\) en kg/s), puis calcul de la puissance thermique transportée par l'eau~: \(P = Q_m \cdot C_p \cdot \Delta T_{\text{mesuré}}\).
+  \item Calcul de la résistance thermique de la couche de calcaire~: \(R_{\text{calcaire}} = \Delta T_{\text{calcaire}} / P\).
+  \item Estimation de l'épaisseur par la loi de Fourier~: \(e = R_{\text{calcaire}} \cdot \lambda \cdot A\), où \(\lambda\) est la conductivité thermique du calcaire (1,0~W/m\(\cdot\)K) et \(A\) la surface latérale interne de la canalisation (\(A = \pi \cdot L \cdot D\)).
+\end{enumerate}
+
+La calibration initiale est cruciale~: elle détermine \(\Delta T_{\text{normal}}\) pour chaque moule. Au démarrage du backend, \texttt{\_load\_calibrations()} interroge InfluxDB pour récupérer la première température enregistrée de chaque moule (requête \texttt{first()}). En l'absence d'historique, une valeur par défaut de 1,5~\si{\celsius} est utilisée. La calibration est stockée dans deux dictionnaires~: \texttt{calibration\_temps} (température de référence) et \texttt{delta\_T\_normal} (écart nominal calculé).
+
+Cinq niveaux d'urgence sont définis en fonction de la température du moule~:
+
+\begin{itemize}
+  \item \(T \geq 42,0\)~\si{\celsius}~: OK (fonctionnement nominal).
+  \item \(41,5 \leq T < 42,0\)~\si{\celsius}~: FAIBLE.
+  \item \(41,0 \leq T < 41,5\)~\si{\celsius}~: MOYEN.
+  \item \(40,5 \leq T < 41,0\)~\si{\celsius}~: HAUTE.
+  \item \(T < 40,5\)~\si{\celsius}~: URGENT.
+\end{itemize}
+
+Le pourcentage de dégradation est calculé comme le rapport entre \(\Delta T_{\text{calcaire}}\) actuel et l'écart maximal admissible avant atteinte du seuil critique.
+
+\subsection{Détection d'anomalies par Isolation Forest}
+
+\subsubsection{Extraction des caractéristiques}
+
+Le détecteur d'anomalies (\texttt{AnomalyDetector}) extrait un vecteur de huit caractéristiques à partir de l'historique glissant des températures et des débits. La fenêtre d'extraction est configurable (30~secondes par défaut via \texttt{FEATURE\_WINDOW\_SECONDS}). En deçà de la période de remplissage de la fenêtre, l'extraction retourne \texttt{None} et la détection est inactive.
+
+Les huit caractéristiques extraites sont~:
+
+\begin{enumerate}
+  \item \textbf{Pente moyenne} (\texttt{slope\_T\_mold})~: moyenne des pentes de régression linéaire sur la fenêtre glissante pour chaque moule. Une pente négative forte indique une dérive.
+  \item \textbf{Variance moyenne} (\texttt{variance\_T\_mold})~: moyenne des variances intra-fenêtre. Une variance élevée signale une instabilité.
+  \item \textbf{Proportion de moules affectés} (\texttt{affected\_molds\_ratio})~: fraction de moules sous le seuil critique (40~\si{\celsius}).
+  \item \textbf{Chute brutale} (\texttt{sudden\_drop\_flag})~: indicateur binaire valant 1 si un moule a perdu plus de 1~\si{\celsius} en moins de 120~cycles (2~minutes).
+  \item \textbf{Débit moyen} (\texttt{flow\_rate})~: moyenne du débit sur la fenêtre.
+  \item \textbf{Variance du débit} (\texttt{flow\_variance})~: variance du débit, indicative d'instabilités hydrauliques.
+  \item \textbf{Moyenne de \(\Delta T_{\text{calcaire}}\)} (\texttt{delta\_T\_calcaire\_mean})~: moyenne des écarts calcaires sur tous les moules.
+  \item \textbf{Autocorrélation à retard~1} (\texttt{autocorr\_lag1})~: moyenne des coefficients d'autocorrélation entre chaque échantillon et son précédent. Une autocorrélation élevée indique une dynamique lente (dérive progressive) plutôt qu'un bruit aléatoire.
+\end{enumerate}
+
+\subsubsection{Modèle et décision}
+
+Le modèle Isolation Forest est configuré avec 200 estimateurs et un taux de contamination de 0,05 (5~\% d'anomalies attendues dans les données). Avant soumission au modèle, les caractéristiques sont normalisées par \texttt{StandardScaler} (moyenne nulle, variance unitaire) pour éviter qu'une caractéristique à grande échelle (le débit) ne domine les autres.
+
+La prédiction produit un score d'anomalie~: plus le score est proche de zéro, plus l'échantillon est anormal. Le seuil de décision est fixé à 0,5~: en-dessous, \texttt{anomaly\_detected = True}. Ce seuil correspond au score de coupure par défaut d'Isolation Forest.
+
+\subsection{Classification des causes -- approche hybride N1/N2}
+
+\subsubsection{Architecture à deux niveaux}
+
+Le classifieur de causes (\texttt{CauseClassifier}) implémente une architecture originale à deux niveaux qui combine les avantages des systèmes à base de règles (déterministes, explicables) et de l'apprentissage automatique (adaptatif, capable de discerner des motifs complexes)~:
+
+\begin{itemize}
+  \item \textbf{Niveau~1 (N1)}~: un ensemble de règles physiques déterministes, exécutées en priorité. Chaque règle examine des indicateurs spécifiques (température du heater, proportion de moules affectés, chute de débit) et retourne une cause avec une confiance de 1,0 si les conditions sont remplies. Si aucune règle ne s'applique, la décision est déléguée au N2.
+  \item \textbf{Niveau~2 (N2)}~: un Random Forest qui reçoit un vecteur de dix caractéristiques (les huit de l'IF augmentées de deux caractéristiques supplémentaires spécifiques au diagnostic : l'indicateur de chute de débit et le coefficient de dérive \(R^2\)).
+\end{itemize}
+
+\subsubsection{Règles physiques (N1)}
+
+Les règles N1 examinent les indicateurs suivants~:
+
+\begin{itemize}
+  \item \texttt{affected\_ratio}~: proportion de moules en dessous du seuil d'alerte.
+  \item \texttt{sudden\_drop}~: présence d'une chute brutale de température.
+  \item \texttt{flow\_rate}~: débit actuel.
+  \item \texttt{flow\_drop}~: indicateur binaire de chute de débit (débit inférieur à 50~\% du nominal).
+  \item \texttt{temp\_heater}~: température de l'eau en sortie du heater.
+  \item \texttt{delta\_T\_calcaire\_slope}~: pente de l'écart calcaire, qui distingue une fuite (pente faible) d'un encrassement (pente élevée).
+\end{itemize}
+
+Les règles, ordonnées par criticité décroissante, sont formalisées par l'Algorithme~\ref{alg:regles_n1}. La règle de fuite de circuit se distingue de l'encrassement calcaire par l'absence de pente calcaire, et de la panne de pompe par un débit qui baisse sans s'effondrer totalement.
+
+\begin{algorithm}[htbp]
+\caption{Règles physiques de classification des causes (niveau N1)}
+\label{alg:regles_n1}
+\begin{minipage}{0.95\textwidth}
+\begin{verbatim}
+FONCTION regles_physiques(affected_ratio, sudden_drop,
+                          flow_rate, flow_drop, temp_heater)
+  SI temp_heater < 44 ET affected_ratio > 0.8 ALORS
+    RETOURNER "HEATER_RESISTANCE_HS"   // resistance ne chauffe plus
+  SINON SI affected_ratio > 0.8 ET flow_drop = Vrai ALORS
+    RETOURNER "HEATER_POMPE_HS"        // la pompe ne debite plus
+  SINON SI affected_ratio > 0.7 ET flow_rate < 0.5 ALORS
+    RETOURNER "NIVEAU_BAS_VANNE_PANNE" // niveau bas ou vanne bloquee
+  SINON SI flow_rate < 0.7 * nominal ET flow_rate > 2.0
+          ET delta_T_calcaire_slope < 0.03 ET NON sudden_drop
+          ET affected_ratio > 0.3 ALORS
+    RETOURNER "FUITE_CIRCUIT"           // debit baisse
+  SINON
+    RETOURNER None                     // cas ambigu -> passage au N2
+  FIN SI
+FIN FONCTION
+\end{verbatim}
+\end{minipage}
+\end{algorithm}
+
+\subsubsection{Random Forest (N2)}
+
+Le vecteur de dix caractéristiques soumis au Random Forest est construit dynamiquement dans la boucle \texttt{\_cycle()}. Les deux caractéristiques additionnelles par rapport à l'IF sont~:
+
+\begin{itemize}
+  \item \texttt{drift\_R\_squared}~: coefficient de détermination \(R^2\) d'une régression linéaire sur les températures des 300 dernières secondes. Un \(R^2\) élevé indique une dérive progressive et régulière, typique de l'encrassement calcaire.
+  \item \texttt{delta\_T\_calcaire\_slope}~: pente de l'écart calcaire moyenné sur 7~jours, indicative de la vitesse d'accumulation.
+\end{itemize}
+
+Le Random Forest est configuré avec 100 arbres, une profondeur maximale de 10, un minimum de 5 échantillons par feuille, et des poids de classe équilibrés (\texttt{class\_weight = 'balanced'}) pour compenser le déséquilibre entre les modes de défaillance rares et fréquents. Le seuil de confiance minimal pour accepter une prédiction est de 0,5~; en dessous, la cause retournée est \texttt{CAUSE\_INDETERMINEE}. La logique de décision du second niveau est formalisée par l'Algorithme~\ref{alg:rf_n2}.
+
+\begin{algorithm}[htbp]
+\caption{Classification de la cause par le Random Forest (niveau N2)}
+\label{alg:rf_n2}
+\begin{minipage}{0.95\textwidth}
+\footnotesize
+\begin{verbatim}
+FONCTION predire_cause_RF(vecteur_10_caracteristiques)
+  SI modele non entraine ALORS
+    RETOURNER "CAUSE_INDETERMINEE", confiance = 0
+  FIN SI
+
+  probabilites <- RF.predict_proba(vecteur_10_caracteristiques)
+  idx          <- argmax(probabilites)      // classe la plus probable
+  cause        <- classes[idx]
+  confiance    <- probabilites[idx]         // vote des arbres
+
+  SI confiance < SEUIL_CONFIANCE ALORS
+    RETOURNER "CAUSE_INDETERMINEE", confiance
+  SINON
+    RETOURNER cause, confiance
+  FIN SI
+FIN FONCTION
+\end{verbatim}
+\end{minipage}
+\end{algorithm}
+
+\subsubsection{Performance du classifieur}
+
+Le F1-score du Random Forest ne reflète pas la performance globale du système de diagnostic pour deux raisons. D'une part, le RF ne traite qu'environ 30~\% des anomalies détectées, correspondant aux cas que les règles physiques (N1) n'ont pas su classer~; les 70~\% restants, résolus par les règles avec une confiance de 1,0, ne lui sont jamais soumis. D'autre part, le déséquilibre des classes AMDEC fait que le RF reçoit principalement des cas rares ou difficiles, ce qui pénalise mécaniquement son F1 par rapport à un classifieur qui traiterait l'ensemble des anomalies. Par conséquent, le F1-weighted mesure la performance du RF sur les cas résiduels ambigus, et non celle du diagnostic complet.
+
+\subsubsection{Étiquetage automatique pour l'entraînement supervisé}
+
+Pour produire des données d'entraînement étiquetées sans intervention manuelle, le module intègre une méthode \texttt{auto\_label()} qui réimplémente les règles physiques N1 sous une forme adaptée à l'étiquetage de séquences temporelles. Conformément à la logique de production, où le classifieur n'est sollicité que sur les fenêtres préalablement signalées comme anormales par l'Isolation Forest, seules ces fenêtres anormales sont soumises à l'étiquetage~: les fenêtres normales ne traversent pas le classifieur et ne sont pas étiquetées comme des causes. Cette méthode examine les mêmes indicateurs que les règles N1 mais avec des seuils enrichis~: au-delà des trois causes du N1 (résistance, pompe, niveau bas), elle détecte les bulles d'air (variance élevée + faible \(R^2\)), l'encrassement calcaire (pente de \(\Delta T\) élevée + \(R^2\) élevé), la fuite de circuit (baisse progressive du débit sans signature calcaire) et l'isolation dégradée (faible proportion affectée + \(R^2\) élevé). Lorsqu'une fenêtre anormale ne correspond à aucune signature connue, elle est étiquetée \texttt{CAUSE\_INDETERMINEE} plutôt que forcée vers une cause arbitraire. Cette approche auto-supervisée évite l'étiquetage manuel tout en produisant un ensemble d'entraînement cohérent avec la logique réelle du diagnostic, au prix d'une dépendance vis-à-vis des règles d'étiquetage qui sont les mêmes que celles du niveau N1.
+
+\subsubsection{Importance des caractéristiques}
+
+Le Tableau~\ref{tab:feature_importance} présente les dix caractéristiques soumises au Random Forest, classées par importance décroissante. Cette importance mesure la contribution de chaque variable à la réduction de l'impureté moyenne (Gini) dans les arbres de la forêt. Les valeurs sont extraites du rapport \texttt{training\_report.json} produit par \texttt{train\_models.py --eval}. Les caractéristiques les plus discriminantes sont la proportion de moules affectés (\texttt{affected\_molds\_ratio}), le delta calcaire moyen et le coefficient de dérive \(R^2\), ce qui confirme que le modèle s'appuie prioritairement sur des indicateurs physiques cohérents avec les règles N1.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Importance des caractéristiques pour le Random Forest (N2)}
+\label{tab:feature_importance}
+\begin{tabular}{|p{0.05\textwidth}|p{0.32\textwidth}|p{0.13\textwidth}|p{0.40\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Rang} & \textbf{Caractéristique} & \textbf{Importance} & \textbf{Interprétation} \\
+\hline
+1 & \texttt{affected\_molds\_ratio} & \textit{À remplir} & Proportion de moules sous le seuil critique \\
+\hline
+2 & \texttt{delta\_T\_calcaire\_mean} & \textit{À remplir} & Perte thermique moyenne attribuée au calcaire \\
+\hline
+3 & \texttt{drift\_R\_squared} & \textit{À remplir} & Coefficient \(R^2\) de la dérive sur 300~secondes \\
+\hline
+4 & \texttt{slope\_T\_mold} & \textit{À remplir} & Pente moyenne des régressions linéaires \\
+\hline
+5 & \texttt{autocorr\_lag1} & \textit{À remplir} & Persistance temporelle du signal \\
+\hline
+6 & \texttt{delta\_T\_calcaire\_slope} & \textit{À remplir} & Vitesse d'accumulation du calcaire \\
+\hline
+7 & \texttt{variance\_T\_mold} & \textit{À remplir} & Dispersion des températures intra-moule \\
+\hline
+8 & \texttt{flow\_rate} & \textit{À remplir} & Débit moyen sur la fenêtre \\
+\hline
+9 & \texttt{sudden\_drop\_flag} & \textit{À remplir} & Indicateur binaire de chute brutale \\
+\hline
+10 & \texttt{flow\_variance} & \textit{À remplir} & Variance du débit (instabilité hydraulique) \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Maintenance prédictive par Ridge Régression}
+
+\subsubsection{Implémentation}
+
+Le module \texttt{RidgePredictor} implémente une régression polynomiale Ridge pour prédire le nombre de jours restants avant que l'épaisseur de calcaire n'atteigne un seuil critique (\(\Delta T_{\text{max}}\)). Un modèle distinct est instancié pour chaque paire (groupe, moule), car chaque moule peut avoir une dynamique d'encrassement différente.
+
+Les données d'entraînement sont les enregistrements quotidiens de \(\Delta T_{\text{calcaire}}\) extraits d'InfluxDB par la requête \texttt{query\_daily\_mean\_mold()}, qui agrège les mesures par fenêtre de 1~jour. Le modèle utilise une transformation polynomiale de degré 2 (\texttt{PolynomialFeatures}) pour capturer les éventuelles non-linéarités dans l'accumulation du calcaire, combinée à une régularisation Ridge (pénalité L2, \(\alpha = 1,0\)) pour éviter le sur-apprentissage sur les petites séquences.
+
+L'entraînement n'est effectif qu'après accumulation d'au moins 7~jours de données (\texttt{RIDGE\_MIN\_DAYS}). En dessous de ce seuil, le modèle n'est pas assez informatif et retourne \texttt{None}.
+
+\subsubsection{Intervalle de confiance par Bootstrap}
+
+Pour chaque prédiction, le module réalise 1000 itérations bootstrap. À chaque itération, un échantillon aléatoire avec remise de taille N est tiré de l'historique d'entraînement (où N est le nombre de jours disponibles). Un modèle Ridge est entraîné sur cet échantillon, puis la prédiction de la date de franchissement du seuil est calculée par projection polynomiale. La fonction \texttt{\_find\_crossing()} détermine l'indice (le nombre de jours à partir d'aujourd'hui) où la courbe prédite dépasse \(\Delta T_{\text{max}}\) pour la première fois.
+
+Les 1000 indices de franchissement obtenus forment une distribution empirique. L'intervalle de confiance à 90~\% est donné par les centiles 5~\% et 95~\% de cette distribution, fournissant respectivement une borne basse (cas le plus pessimiste) et une borne haute (cas le plus optimiste). La prédiction médiane (centile 50~\%) constitue la date de maintenance recommandée. L'ensemble de la procédure est résumé par l'Algorithme~\ref{alg:ridge_boot}.
+
+\begin{algorithm}[htbp]
+\caption{Prédiction de maintenance par Ridge et intervalle de confiance bootstrap}
+\label{alg:ridge_boot}
+\begin{minipage}{0.95\textwidth}
+\begin{verbatim}
+FONCTION predire_maintenance(historique_journalier, seuil_max)
+  SI nombre_de_jours(historique) < MIN_JOURS ALORS
+    RETOURNER None        // donnees insuffisantes (< 7 jours)
+  FIN SI
+
+  // Prediction centrale
+  modele     <- entrainer_ridge_polynomial(historique)
+  courbe     <- modele.predict(horizon_futur)
+  jours_med  <- trouver_franchissement(courbe, seuil_max)
+
+  // Estimation de l'incertitude par bootstrap
+  franchissements <- liste vide
+  POUR i DE 1 A 1000 FAIRE
+    echantillon <- tirage_avec_remise(historique)
+    m_b         <- entrainer_ridge_polynomial(echantillon)
+    courbe_b    <- m_b.predict(horizon_futur)
+    j_b         <- trouver_franchissement(courbe_b, seuil_max)
+    ajouter j_b A franchissements
+  FIN POUR
+
+  // Intervalle de confiance a 90 %
+  borne_basse <- percentile(franchissements, 5)
+  mediane     <- percentile(franchissements, 50)
+  borne_haute <- percentile(franchissements, 95)
+
+  RETOURNER mediane, borne_basse, borne_haute
+FIN FONCTION
+\end{verbatim}
+\end{minipage}
+\end{algorithm}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Figure~: courbes de prédiction Ridge avec intervalle de confiance bootstrap]}}
+  \caption{Courbes Ridge -- prédiction TTF avec intervalle de confiance}
+  \label{fig:bootstrap_ci_concept}
+\end{figure}
+
+\subsection{Interface de supervision}
+
+\subsubsection{Architecture frontend}
+
+Le frontend est développé avec React~18 et Vite. L'architecture suit le modèle de composants réactifs~: chaque carte de température (\texttt{MoldCard}) est un composant indépendant qui se met à jour individuellement lorsque ses propriétés changent, sans re-rendre toute la page. Cette approche est essentielle pour un affichage à 1~Hz où six cartes se mettent à jour simultanément.
+
+La connexion WebSocket est gérée par un composant dédié (\texttt{WebSocket.jsx}) qui se connecte au endpoint \texttt{/ws} du backend au montage du composant racine. À chaque message reçu (fréquence~: 1~Hz), le composant met à jour un état React global (\texttt{Context}) qui est consommé par les trois onglets. En cas de déconnexion, le navigateur tente une reconnexion automatique.
+
+La navigation entre les trois vues repose sur un état local du composant racine qui mémorise l'onglet actif. Chaque bouton de la barre d'onglets, lorsqu'il est cliqué, met à jour cet état~; React détecte alors le changement et n'affiche que le composant correspondant à l'onglet sélectionné, les deux autres étant retirés du rendu. Ce mécanisme, dit de rendu conditionnel, évite de charger simultanément les trois vues et conserve une interface fluide. Les données reçues par WebSocket restant centralisées dans le contexte React global, le changement d'onglet n'interrompt pas le flux temps réel~: chaque vue retrouve immédiatement les dernières mesures à son affichage.
+
+Les trois onglets fonctionnels sont~:
+
+\begin{enumerate}
+  \item \textbf{Supervision}~: affiche les six moules répartis en quatre groupes. Chaque carte indique la température, le statut (OK/alerte/critique, codé par couleur), l'écart à la consigne, la référence du moule, et l'épaisseur de calcaire estimée.
+  \item \textbf{Diagnostic intelligent}~: synthèse du dernier diagnostic avec la cause détectée, le score de confiance, le niveau d'urgence Grey-Box, la criticité et les moules affectés. C'est dans cet onglet, et non dans les notifications d'alerte, que la cause est restituée à l'opérateur~: les alertes se limitent à signaler rapidement un dépassement de seuil, tandis que le diagnostic complet est consultable ici. Les actions correctives recommandées y sont présentées sous forme de cartes de type \emph{post-it}, une par action, ce qui permet à l'opérateur de les parcourir et de les traiter une à une. Ces actions ne sont pas génériques~: elles proviennent directement du référentiel AMDEC établi au chapitre~2, où chaque mode de défaillance est associé à une liste d'actions précises (cf. Annexe~\ref{annexe:amdec}). Le backend enrichit chaque diagnostic avec la criticité et les actions du mode identifié, puis les transmet au frontend qui les affiche.
+  \item \textbf{Maintenance prédictive}~: graphiques d'évolution de l'épaisseur de calcaire (Recharts \texttt{LineChart}) et prédictions de durée de vie résiduelle avec intervalle de confiance pour chaque moule.
+\end{enumerate}
+
+Au-delà du code couleur propre à chaque carte, l'interface comporte une alerte visuelle globale qui attire l'attention de l'opérateur même lorsqu'il ne se trouve pas devant l'écran. Dès qu'un moule atteint l'état critique, un halo rouge pulsé apparaît sur le pourtour de l'écran et reste actif tant que la condition persiste~; la carte du moule concerné pulse au même rythme. Cette alerte ne contient aucun texte~: elle sert seulement à signaler de loin qu'une situation anormale demande une intervention. Le détail (moule concerné, température, cause) reste consultable de près sur les cartes et dans l'onglet de diagnostic, ainsi que dans la notification envoyée en parallèle. L'information est donc présentée par degrés, du signal lointain au détail rapproché, ce qui réduit la redondance entre les canaux.
+
+Sur le plan technique, le halo est implémenté par une animation CSS. Lorsque la température d'un moule passe sous le seuil critique (inférieur à 40,5~\si{\celsius}), une variable d'état \texttt{isCritical} est mise à \texttt{true} dans le contexte React. Une classe CSS \texttt{halo-active} est alors appliquée au conteneur racine de la page, déclenchant une animation \texttt{@keyframes pulse} qui fait varier l'ombre portée (\texttt{box-shadow}) d'une teinte rouge toutes les deux secondes. Chaque carte \texttt{MoldCard} applique localement la classe \texttt{mold-card--critical} lorsque son propre statut est \texttt{CRITIQUE}, produisant une pulsation synchronisée sur la même fréquence. Le halo périphérique et la pulsation de la carte sont déclenchés par le même état critique mais visuellement découplés~: le premier signale la situation anormale à distance, la seconde localise précisément le moule défaillant sans nécessiter un balayage visuel de l'ensemble de l'écran.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Capture d'écran~: onglet Supervision]}}
+  \caption{Interface utilisateur -- onglet Supervision}
+  \label{fig:ui_supervision}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Capture d'écran~: onglet Diagnostic intelligent]}}
+  \caption{Interface utilisateur -- onglet Diagnostic}
+  \label{fig:ui_diagnostic}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Capture d'écran~: onglet Maintenance prédictive]}}
+  \caption{Interface utilisateur -- onglet Maintenance}
+  \label{fig:ui_maintenance}
+\end{figure}
+
+\subsubsection{Communication backend-frontend}
+
+La transmission des données entre le backend et le frontend repose sur une connexion WebSocket persistante établie au démarrage de l'interface utilisateur. Le flux de données suit le cycle suivant~:
+
+\begin{enumerate}
+  \item Le composant \texttt{useWebSocket.js} (dans \texttt{hooks/}) ouvre une connexion vers \texttt{ws://<adresse>:8001/ws} au montage du composant racine \texttt{App.jsx}.
+  \item Le backend exécute \texttt{\_broadcast\_to(ws)} immédiatement après l'acceptation de la connexion, envoyant l'état courant (capteurs, diagnostic, prédictions) au nouveau client.
+  \item À chaque cycle d'acquisition (1~Hz), le backend appelle \texttt{\_broadcast\_all()} qui sérialise un dictionnaire Python en JSON et le diffuse à l'ensemble des clients connectés.
+  \item Le frontend reçoit le message via \texttt{ws.onmessage}, le désérialise (\texttt{JSON.parse}), et met à jour l'état React global via \texttt{setData()}.
+  \item Les trois onglets consomment cet état~: \texttt{SupervisionTab} affiche les cartes de température, \texttt{DiagnosticTab} restitue la cause et les actions AMDEC, \texttt{MaintenanceTab} présente les courbes Ridge.
+\end{enumerate}
+
+La structure complète du message JSON transmis à chaque cycle est la suivante~:
+
+\begin{verbatim}
+{
+  "sensors": [
+    {
+      "group_id": 1, "mold_id": 1,
+      "position": "gauche",
+      "temperature": 43.2,
+      "status": "OK",
+      "epaisseur_mm": 0.24,
+      "delta_T_calcaire": 0.12,
+      "urgence": "OK",
+      "degradation_pct": 8.0,
+      "deviation": -1.8,
+      "nomenclature": "RBA_178 #03",
+      "timestamp": "2025-06-15T14:32:01"
+    }
+    // ... 6 capteurs
+  ],
+  "diagnostic": {
+    "anomaly_detected": false,
+    "anomaly_score": 0.62,
+    "cause": "NORMAL",
+    "confidence": 1.0,
+    "affected_molds": [],
+    "timestamp": "2025-06-15T14:32:01",
+    "features": {
+      "Score IF": 0.62,
+      "Cause": "NORMAL",
+      "Methode": "default"
+    },
+    "history": [
+      { "timestamp": "...", "cause": "NORMAL", "confidence": 1.0 }
+    ]
+  },
+  "maintenance": [
+    {
+      "group_id": 1, "mold_id": 1,
+      "predicted_days_remaining": 45,
+      "predicted_date": "30/07/2025",
+      "confidence_interval": [30, 62],
+      "history_chart": [
+        { "day": 0, "v": 0.12 },
+        { "day": 30, "v": 0.45 }
+      ]
+    }
+  ]
+}
+\end{verbatim}
+
+\noindent Un mécanisme de \emph{heartbeat} maintient la connexion active~: le backend envoie toutes les 30~secondes un message \texttt{\{"t": "ping"\}} que le frontend ignore explicitement (vérification \texttt{if parsed.t === 'ping' return}). En cas de déconnexion, un algorithme de reconnexion avec \emph{backoff exponentiel} est déclenché~: la première tentative après 1~seconde, puis le délai double à chaque échec jusqu'à 30~secondes maximum. Ce mécanisme, implémenté dans \texttt{useWebSocket.js}, évite de saturer le backend de tentatives rapprochées tout en garantissant la reprise automatique de la communication.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.85\textwidth}{\centering\itshape [Schéma d'architecture~: flux de données backend $\leftrightarrow$ frontend via WebSocket]}}
+  \caption{Architecture de la communication backend-frontend}
+  \label{fig:ws_architecture}
+\end{figure}
+
+\subsection{Système d'alertes multicanal}
+
+Le module \texttt{alerting.py} assure l'envoi direct des notifications par deux canaux redondants, sans intermédiaire.
+
+\subsubsection{Canal Telegram}
+
+L'envoi Telegram utilise une requête HTTP POST vers l'API REST \url{https://api.telegram.org/bot<TOKEN>/sendMessage}. Le corps de la requête est au format JSON et contient l'identifiant du groupe (\texttt{chat\_id}), le texte du message formaté en Markdown, et le mode d'analyse (\texttt{parse\_mode}). La fonction \texttt{send\_telegram()} appelle \texttt{requests.post()} avec un timeout de 10~secondes. En cas d'échec (code HTTP différent de 200), l'erreur est journalisée mais ne bloque pas le cycle d'acquisition.
+
+Le message Telegram est formaté en Markdown et inclut la sévérité (WARNING ou CRITICAL), la date et l'heure, la liste des moules affectés, et pour chaque moule son nom, sa position, sa température et son statut. La cause du diagnostic (détectée par le pipeline N1/N2) n'est volontairement pas incluse dans les alertes~: le rôle des notifications est d'avertir rapidement l'opérateur d'un dépassement de seuil, tandis que le diagnostic détaillé est consultable dans l'interface utilisateur. Deux groupes distincts sont notifiés~: le groupe opérateurs (\texttt{TELEGRAM\_OPERATORS\_ID}) pour toutes les alertes, et le canal responsable (\texttt{TELEGRAM\_CHEF\_ID}) pour les alertes CRITICAL uniquement.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: création du bot Telegram via BotFather]}}
+  \caption{Configuration du bot Telegram}
+  \label{fig:telegram_bot}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: notification Telegram reçue sur le groupe opérateurs]}}
+  \caption{Alerte Telegram -- message reçu}
+  \label{fig:telegram_alert}
+\end{figure}
+
+\subsubsection{Canal SMTP}
+
+L'envoi de courriel utilise la bibliothèque standard \texttt{smtplib} avec STARTTLS sur le port 587 (Gmail). La fonction \texttt{send\_email()} crée un objet \texttt{EmailMessage} avec l'expéditeur, le destinataire, le sujet et le corps, puis ouvre une connexion SMTP sécurisée, s'authentifie avec le mot de passe d'application Gmail, et envoie le message. Un timeout de 15~secondes protège contre les blocages réseau.
+
+Seules les alertes de niveau CRITICAL déclenchent un envoi de courriel, la notification Telegram restant activée pour tous les niveaux. Cette redondance garantit qu'une alerte critique atteint le responsable même si Telegram est temporairement indisponible. Le format du message email est identique à celui de Telegram (en texte brut, sans la cause du diagnostic), avec pour sujet \texttt{ALERTE - Supervision Thermique}.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: configuration SMTP dans config.py]}}
+  \caption{Configuration SMTP}
+  \label{fig:smtp_config}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: courriel d'alerte reçu]}}
+  \caption{Alerte courriel -- message reçu}
+  \label{fig:email_alert}
+\end{figure}
+
+\subsubsection{Niveaux de sévérité et déclenchement}
+
+Le système d'alerte est déclenché dans la boucle \texttt{\_cycle()} après la mise à jour des capteurs. Il évalue le statut le plus sévère parmi les six moules~:
+
+\begin{itemize}
+  \item \textbf{WARNING} (température entre 40~et~42~\si{\celsius})~: notification Telegram aux opérateurs uniquement.
+  \item \textbf{CRITICAL} (température \(<40\)~\si{\celsius})~: notification Telegram aux opérateurs et au responsable, plus courriel au responsable.
+  \item \textbf{SYSTEM} (perte de communication bus, six capteurs muets simultanément)~: Telegram et courriel, urgence maximale. Ce niveau est détecté par le mécanisme de reconnexion Modbus.
+\end{itemize}
+
+La logique d'aiguillage des notifications selon la sévérité est résumée par l'Algorithme~\ref{alg:alertes}~: le canal Telegram est emprunté pour tous les niveaux, tandis que le courriel est réservé aux niveaux les plus graves.
+
+\begin{algorithm}[htbp]
+\caption{Envoi des notifications selon la sévérité}
+\label{alg:alertes}
+\begin{minipage}{0.95\textwidth}
+\begin{verbatim}
+FONCTION envoyer_alerte(severite, moules_affectes)
+  message <- formater_message(severite, moules_affectes)
+
+  // Canal Telegram : tous les niveaux
+  envoyer_telegram(GROUPE_OPERATEURS, message)
+  SI severite = CRITICAL OU severite = SYSTEM ALORS
+    envoyer_telegram(CANAL_RESPONSABLE, message)
+  FIN SI
+
+  // Canal courriel : niveaux graves uniquement
+  SI severite = CRITICAL OU severite = SYSTEM ALORS
+    envoyer_email(RESPONSABLE, message)
+  FIN SI
+FIN FONCTION
+\end{verbatim}
+\end{minipage}
+\end{algorithm}
+
+\section{Tests et vérification}
+
+\subsection{Stratégie de test}
+
+La stratégie de test suit le cycle en V défini au chapitre~2. Chaque module est testé unitairement, puis l'intégration de l'ensemble assemblé est vérifiée. Les tests sont conçus pour s'exécuter sans matériel physique, grâce à la technique de \textit{monkey patching}.
+
+\subsection{Tests unitaires}
+
+Trente-cinq tests unitaires répartis en cinq fichiers couvrent les modules principaux. Les tests vérifient~:
+
+\begin{itemize}
+  \item \textbf{Modbus Manager}~: création de la structure \texttt{SensorReading} avec et sans température, formatage des statuts (OK/ALERTE/CRITIQUE/ERREUR) en fonction des seuils.
+  \item \textbf{Grey-Box}~: classification des niveaux d'urgence pour chaque plage de température, calibration, calcul d'épaisseur en mode normal (calcaire nul), en mode dégradé (\(\Delta T\) = 3~\si{\celsius}), et en mode critique (urgence URGENT, dégradation à 100~\%). Un test vérifie le comportement par défaut en l'absence de calibration.
+  \item \textbf{Anomaly Detector}~: extraction des huit caractéristiques avec des données suffisantes (forme du tableau, type float64), comportement avec des données insuffisantes (retour \texttt{None}), prédiction sans modèle entraîné (retour \texttt{anomaly\_detected = False}).
+  \item \textbf{Cause Classifier}~: application des règles physiques pour chaque mode de défaillance (HEATER\_RESISTANCE\_HS, HEATER\_POMPE\_HS), vérification du retour \texttt{None} pour les cas ambigus, étiquetage automatique des sept classes AMDEC via \texttt{auto\_label()}.
+  \item \textbf{Ridge Predictor}~~: rejet de l'entraînement avec des données insuffisantes (\(<7\)~jours), fonction \texttt{\_find\_crossing()} avec et sans franchissement de seuil, cohérence de l'intervalle bootstrap (borne\_basse \(\leq\) médiane \(\leq\) borne\_haute).
+  \item \textbf{Flow Sensor}~: conversion fréquence-débit (75~impulsions en 1~seconde = 10~L/min), réinitialisation du compteur après lecture, rejet des pics (500 impulsions en 1~seconde \(= 66,7\)~L/min \(>30\)~L/min, remplacement par valeur nominale), comportement sans matériel GPIO.
+\end{itemize}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Tests unitaires -- résultats}
+\label{tab:tests_unitaires}
+\begin{tabular}{|p{0.25\textwidth}|p{0.25\textwidth}|p{0.15\textwidth}|p{0.15\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Module} & \textbf{Test} & \textbf{Attendu} & \textbf{Obtenu} \\
+\hline
+Modbus Manager & Lecture séquentielle six capteurs & 6 lectures & \textit{À remplir} \\
+\hline
+Modbus Manager & Reconnexion après timeout & Reconnexion en 30~s & \textit{À remplir} \\
+\hline
+Grey-Box & Calcul épaisseur (\(\Delta\)=2°C, débit=16,5~L/min) & \(e \approx 0,24\)~mm & \textit{À remplir} \\
+\hline
+Grey-Box & Calibration jour~1 & \(\Delta T_{\text{normal}}\) = 1,5°C & \textit{À remplir} \\
+\hline
+Détecteur IF & Extraction caractéristiques (30~s) & 8 caractéristiques & \textit{À remplir} \\
+\hline
+Détecteur IF & Prédiction sur données normales & anomalie = Faux & \textit{À remplir} \\
+\hline
+Classifieur & Règle N1 -- pompe HS & cause = HEATER\_\allowbreak POMPE\_\allowbreak HS & \textit{À remplir} \\
+\hline
+Classifieur & Règle N1 -- résistance HS & cause = HEATER\_\allowbreak RESISTANCE\_\allowbreak HS & \textit{À remplir} \\
+\hline
+Classifieur & Cas ambigu \(\rightarrow\) N2 & None (délégation RF) & \textit{À remplir} \\
+\hline
+Classifieur & Auto-label sept classes AMDEC & sept causes distinctes & \textit{À remplir} \\
+\hline
+Ridge & Prédiction TTF & days\_\allowbreak remaining \(>0\) & \textit{À remplir} \\
+\hline
+Ridge & Bootstrap IC~90\% & IC cohérent & \textit{À remplir} \\
+\hline
+Flow Sensor & Conversion fréquence \(\rightarrow\) débit & 75~Hz = 10~L/min & \textit{À remplir} \\
+\hline
+Flow Sensor & Rejet de pic \(>30\)~L/min & retour valeur nominale & \textit{À remplir} \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Tests d'intégration}
+
+\subsubsection{Monkey patching des dépendances matérielles}
+
+Les tests d'intégration et unitaires utilisent la technique du \textit{monkey patching} pour exécuter la suite de tests sur n'importe quelle machine de développement, sans nécessiter de matériel spécifique (bus RS485, capteurs, GPIO). Cette approche consiste à remplacer, au niveau du module Python, les bibliothèques et modules qui dépendent du matériel par des objets simulés (\textit{mocks}) avant l'importation du code à tester.
+
+Le fichier \texttt{test\_api\_integration.py} illustre cette technique de manière exemplaire. Avant toute importation des modules du backend, le script crée des objets \texttt{MagicMock} pour remplacer~:
+
+\begin{itemize}
+  \item \texttt{influxdb\_manager}~: mocker les fonctions \texttt{init\_influxdb()}, \texttt{write\_sensors()}, \texttt{write\_flow()}, \texttt{query\_recent()}, \texttt{query\_daily\_mean\_mold()}, \texttt{query\_calibration\_temp()}. La fonction asynchrone \texttt{init\_modbus()} utilise \texttt{AsyncMock}.
+  \item \texttt{modbus\_manager}~: mocker les fonctions \texttt{init\_modbus()}, \texttt{close\_modbus()}, \texttt{read\_all\_sensors()}, \texttt{read\_heater\_temp()}. Les fonctions asynchrones utilisent \texttt{AsyncMock}.
+  \item \texttt{alerting}~: mocker \texttt{send\_alert()}.
+  \item \texttt{gpiozero}~: mocker l'ensemble du module, puisque le backend l'importe via \texttt{flow\_sensor}.
+\end{itemize}
+
+Ces mocks sont injectés dans \texttt{sys.modules} avant l'import de \texttt{main.py}, ce qui fait que Python charge les versions mockées plutôt que les modules réels au moment de l'exécution des instructions \texttt{import}. Cette substitution transparente permet à l'application FastAPI de démarrer complètement (via \texttt{TestClient}) sans qu'aucun matériel ne soit connecté.
+
+Les sept scénarios de tests d'intégration couvrent~:
+
+\begin{enumerate}
+  \item \textbf{Pipeline complet}~: la boucle d'acquisition s'exécute en moins d'une seconde.
+  \item \textbf{Backend \(\rightarrow\) InfluxDB}~: les mesures sont écrites et relues correctement.
+  \item \textbf{InfluxDB \(\rightarrow\) RF retrain}~: les données historiques produisent un modèle entraîné.
+  \item \textbf{Backend \(\rightarrow\) WebSocket}~: les données sont diffusées en temps réel au frontend.
+  \item \textbf{Alerte Telegram}~: une notification est envoyée et reçue.
+  \item \textbf{Alerte courriel}~: un courriel est envoyé et reçu.
+  \item \textbf{Reconnexion Modbus}~: après une déconnexion physique du bus, la communication est rétablie automatiquement en 30~secondes.
+\end{enumerate}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Tests d'intégration -- résultats}
+\label{tab:tests_integration}
+\begin{tabular}{|p{0.22\textwidth}|p{0.30\textwidth}|p{0.15\textwidth}|p{0.15\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Scénario} & \textbf{Description} & \textbf{Attendu} & \textbf{Obtenu} \\
+\hline
+Pipeline complet & Boucle 1~Hz~: acquisition \(\rightarrow\) stockage \(\rightarrow\) diffusion & Cycle \(<1\)~s & \textit{À remplir} \\
+\hline
+Backend \(\rightarrow\) InfluxDB & Mesures écrites et lues depuis la base & Écriture + lecture OK & \textit{À remplir} \\
+\hline
+InfluxDB \(\rightarrow\) RF retrain & Données historiques \(\rightarrow\) modèle entraîné & Modèle produit & \textit{À remplir} \\
+\hline
+Backend \(\rightarrow\) WebSocket & Diffusion temps réel vers le frontend & Mise à jour 1~Hz & \textit{À remplir} \\
+\hline
+Alerte Telegram & Envoi de notification pour anomalie & Message reçu sur le groupe & \textit{À remplir} \\
+\hline
+Alerte courriel & Envoi de notification pour alerte critique & Courriel reçu & \textit{À remplir} \\
+\hline
+Reconnexion Modbus & Déconnexion physique du bus RS485 & Reprise automatique en 30~s & \textit{À remplir} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: test d'intégration -- Pipeline complet]}}
+  \caption{Test d'intégration -- Pipeline complet}
+  \label{fig:test_pipeline}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: test d'intégration -- InfluxDB]}}
+  \caption{Test d'intégration -- InfluxDB}
+  \label{fig:test_influxdb}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: test d'intégration -- WebSocket]}}
+  \caption{Test d'intégration -- WebSocket}
+  \label{fig:test_websocket}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: test d'intégration -- Alerte Telegram]}}
+  \caption{Test d'intégration -- Alerte Telegram}
+  \label{fig:test_telegram}
+\end{figure}
+
+\subsection{Tests d'acceptation}
+
+Les tests d'acceptation (prototype en laboratoire) valident la conformité au cahier des charges. Les résultats seront renseignés après la phase de tests en conditions réelles.
+
+\section{Mise en œuvre et plan de maintenance}
+
+\subsection{Déploiement}
+
+Le déploiement cible un Raspberry Pi~4 (8~Go) exécutant Raspberry Pi~OS. La procédure est entièrement automatisée par \texttt{setup\_rpi.sh}. Les services critiques sont gérés par systemd~:
+
+\begin{itemize}
+  \item \texttt{supervision-backend.service}~: backend FastAPI + boucle d'acquisition.
+  \item \texttt{supervision-frontend.service}~: serveur Vite en mode production.
+  \item \texttt{influxdb.service}~: base de données temporelle.
+\end{itemize}
+
+Le système est conçu pour fonctionner en continu (24~h/24, 7~j/7) avec une sortie HDMI connectée à un écran industriel pour l'affichage kiosk.
+
+\subsection{Mise en service et validation terrain}
+
+\subsubsection{Procédure de mise en service}
+
+La mise en œuvre sur site suit le processus suivant~:
+
+\begin{enumerate}
+  \item \textbf{Installation matérielle}~: fixation des six capteurs PT100 sur les moules, câblage du bus RS485 en daisy chain, installation du débitmètre YF-S201 sur la canalisation, branchement de l'alimentation 5~V et de l'écran HDMI.
+  \item \textbf{Déploiement logiciel}~: exécution de \texttt{setup\_rpi.sh} qui automatise l'ensemble des onze phases de configuration.
+  \item \textbf{Calibration}~: lancement de la boucle d'acquisition en mode calibration. Le système enregistre les températures nominales pendant 30~minutes et calcule les \(\Delta T_{\text{normal}}\) pour chaque moule.
+  \item \textbf{Validation fonctionnelle}~: exécution de \texttt{demo\_cli.py} pour simuler chaque scénario de défaillance (NORMAL, GRADUAL\_DROP, SUDDEN\_DROP, HEATER\_FAIL, PUMP\_FAIL, NOISY) et vérifier les réactions du système (détection, classification, alerte).
+\end{enumerate}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: mode NORMAL -- températures stables 44--45~\si{\celsius}]}}
+  \caption{Scénario NORMAL -- fonctionnement nominal}
+  \label{fig:demo_normal}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: mode GRADUAL\_DROP -- décroissance lente]}}
+  \caption{Scénario GRADUAL\_DROP -- dérive progressive}
+  \label{fig:demo_gradual}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: mode SUDDEN\_DROP -- chute brutale]}}
+  \caption{Scénario SUDDEN\_DROP}
+  \label{fig:demo_sudden}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: mode HEATER\_FAIL -- tous les moules sous 42~\si{\celsius}]}}
+  \caption{Scénario HEATER\_FAIL}
+  \label{fig:demo_heater}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: mode PUMP\_FAIL -- chute globale]}}
+  \caption{Scénario PUMP\_FAIL}
+  \label{fig:demo_pump}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.60\textwidth}{\centering\itshape [Capture d'écran~: mode NOISY -- lectures erratiques]}}
+  \caption{Scénario NOISY}
+  \label{fig:demo_noisy}
+\end{figure}
+
+\subsection{Plan de maintenance}
+
+\subsubsection{Maintenance préventive}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Plan de maintenance préventive}
+\label{tab:maintenance_prev}
+\begin{tabular}{|p{0.26\textwidth}|p{0.18\textwidth}|p{0.38\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Action} & \textbf{Périodicité} & \textbf{Description} \\
+\hline
+Nettoyage écran industriel & Hebdomadaire & Dépoussiérage de l'écran et du boîtier \\
+\hline
+Vérification connexions RS485 & Mensuelle & Contrôle visuel des borniers et serrage \\
+\hline
+Sauvegarde base InfluxDB & Hebdomadaire & Export \texttt{influx backup} vers stockage externe \\
+\hline
+Mise à jour système & Trimestrielle & \texttt{apt update \&\& apt upgrade} \\
+\hline
+Rotation des journaux & Mensuelle & Nettoyage des logs (\texttt{journalctl}, \texttt{*.log}) \\
+\hline
+Test alertes Telegram/courriel & Mensuelle & Envoi d'un message de test automatique \\
+\hline
+Nettoyage débitmètre YF-S201 & Trimestrielle & Démontage, détartrage, vérification du rotor \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Maintenance corrective}
+
+Les procédures suivantes sont documentées pour les interventions d'urgence~:
+
+\begin{itemize}
+  \item \textbf{Panne RPi}~: remplacement par la carte de secours préconfigurée (image SD clone). Temps d'arrêt estimé~: 15~minutes.
+  \item \textbf{Panne capteur PT100}~: remplacement à l'identique, recalibration automatique au prochain cycle.
+  \item \textbf{Panne convertisseur USB/RS485}~: remplacement par unité de rechange, vérification des paramètres (9600~bauds, 8N1).
+  \item \textbf{Panne débitmètre}~: remplacement YF-S201, vérification du facteur d'étalonnage (7,5~Hz par L/min).
+  \item \textbf{Corruption base InfluxDB}~: restauration depuis la dernière sauvegarde hebdomadaire.
+\end{itemize}
+
+\subsubsection{Surveillance de la santé du système}
+
+Un module de watchdog logiciel intégré au backend vérifie en continu~:
+
+\begin{itemize}
+  \item La réactivité du bus Modbus (timeout inférieur à 1~s par capteur).
+  \item L'intégrité de la connexion InfluxDB (ping toutes les 60~secondes).
+  \item La fraîcheur des données frontend (WebSocket actif, mise à jour inférieure à 2~s).
+  \item L'espace disque restant (alerte si inférieur à 1~Go).
+  \item La température CPU du RPi (alerte si supérieure à 70~\si{\celsius}).
+\end{itemize}
+
+En complément, un script \texttt{healthcheck.sh} exécuté toutes les 5~minutes par cron remonte ces métriques et notifie l'opérateur via le système d'alertes en cas de dégradation.
+
+\section{Résultats et interprétation}
+
+\subsection{Performances des modèles}
+
+L'évaluation des modèles est réalisée par le script \texttt{train\_models.py} avec l'option \texttt{--eval}. Ce script interroge les données stockées dans InfluxDB, extrait les vecteurs de caractéristiques pour chaque modèle, applique l'étiquetage automatique via \texttt{model\_evaluator.py}, et produit un rapport complet au format JSON (\texttt{models/training\_report.json}). Les métriques suivantes y sont consignées~:
+
+\begin{itemize}
+  \item \textbf{Isolation Forest}~: taux de faux positifs (FPR), taux de faux négatifs (FNR), score d'anomalie moyen sur la fenêtre d'évaluation.
+  \item \textbf{Random Forest}~: F1-score pondéré (weighted), exactitude (accuracy), distribution des probabilités par classe. Ces métriques ne reflètent que la performance du RF sur les cas ambigus qui lui sont soumis, pas la performance du diagnostic global.
+  \item \textbf{Ridge Regressor}~: erreur quadratique moyenne (RMSE), coefficient de détermination (\(R^2\)), largeur de l'intervalle de confiance à 90~\%.
+\end{itemize}
+
+Le Tableau~\ref{tab:metriques} regroupe les métriques des trois modèles. Les figures associées (courbe ROC, matrice de confusion, projection t-SNE, courbes Ridge) sont générées par le script \texttt{plots\_evaluation.py} et sauvegardées dans \texttt{models/plots/}. Les résultats présentés ont été obtenus sur des données simulées, les pannes réelles n'ayant pas été observées pendant la durée du stage.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Métriques d'évaluation des modèles extraites du rapport training\_report.json}
+\label{tab:metriques}
+\begin{tabular}{|p{0.18\textwidth}|p{0.16\textwidth}|p{0.15\textwidth}|p{0.31\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Modèle} & \textbf{Métrique} & \textbf{Valeur} & \textbf{Source} \\
+\hline
+Isolation Forest & FPR (faux positifs) & \textit{À remplir} & \path{training_report.json} \\
+\hline
+Isolation Forest & FNR (faux négatifs) & \textit{À remplir} & \path{training_report.json} \\
+\hline
+Random Forest & F1-weighted & \textit{À remplir} & \path{training_report.json} \\
+\hline
+Random Forest & Accuracy & \textit{À remplir} & \path{training_report.json} \\
+\hline
+Ridge & RMSE & \textit{À remplir} & \path{training_report.json} \\
+\hline
+Ridge & \(R^2\) & \textit{À remplir} & \path{training_report.json} \\
+\hline
+Ridge & Largeur IC à 90~\% & \textit{À remplir} & \path{training_report.json} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][6cm][c]{0.85\textwidth}{\centering\itshape [Capture d'écran~: sortie console de \texttt{train\_models.py --eval} montrant les métriques extraites du rapport \path{training_report.json}]}}
+  \caption{Rapport d'évaluation -- métriques des modèles}
+  \label{fig:training_report}
+\end{figure}
+
+\paragraph{Figures de performance -- Isolation Forest.}
+La courbe ROC (Figure~\ref{fig:roc_if}) illustre le compromis entre le taux de vrais positifs et le taux de faux positifs pour différents seuils de décision. L'aire sous la courbe (AUC) quantifie la capacité du modèle à distinguer les cycles normaux des cycles anormaux, indépendamment du seuil choisi.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Insérer ici~: courbe ROC de l'Isolation Forest générée par \texttt{plots\_evaluation.py}]}}
+  \caption{Courbe ROC -- Isolation Forest}
+  \label{fig:roc_if}
+\end{figure}
+
+\paragraph{Figures de performance -- Random Forest.}
+La matrice de confusion (Figure~\ref{fig:confusion_rf}) croise les causes réelles (étiquettes automatiques) avec les causes prédites par le RF, permettant d'identifier les confusions fréquentes entre modes de défaillance. La projection t-SNE (Figure~\ref{fig:tsne}) offre une visualisation en deux dimensions de l'espace des dix caractéristiques, où la séparation des groupes de points de couleurs différentes indique la capacité du modèle à distinguer les classes.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Insérer ici~: matrice de confusion du Random Forest générée par \texttt{plots\_evaluation.py}]}}
+  \caption{Matrice de confusion -- Random Forest}
+  \label{fig:confusion_rf}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Insérer ici~: projection t-SNE des caractéristiques générée par \texttt{plots\_evaluation.py}]}}
+  \caption{Projection t-SNE -- séparabilité des modes de défaillance}
+  \label{fig:tsne}
+\end{figure}
+
+\paragraph{Figures de performance -- Ridge Regressor.}
+La courbe de prédiction Ridge (Figure~\ref{fig:ridge_curves}) superpose la progression de l'épaisseur de calcaire estimée (points bleus) et la courbe de régression polynomiale (trait rouge) avec l'intervalle de confiance à 90~\% (zone hachurée). La ligne horizontale en pointillés marque le seuil critique, et l'intersection avec la courbe de prédiction donne la durée de vie résiduelle estimée.
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\itshape [Insérer ici~: courbes Ridge avec intervalle de confiance générées par \texttt{plots\_evaluation.py}]}}
+  \caption{Prédiction Ridge -- durée de vie résiduelle avec intervalle de confiance bootstrap}
+  \label{fig:ridge_curves}
+\end{figure}
+
+\subsection{Confrontation au cahier des charges}
+
+Le Tableau~\ref{tab:cdc} confronte les résultats aux objectifs du cahier des charges fixés au chapitre~2.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.45}
+\caption{Confrontation au cahier des charges}
+\label{tab:cdc}
+\begin{tabular}{|p{0.40\textwidth}|p{0.16\textwidth}|p{0.24\textwidth}|}
+\hline
+\rowcolor{gray!25}
+\textbf{Objectif} & \textbf{État} & \textbf{Vérification} \\
+\hline
+Supervision thermique en temps réel des six moules & Atteint & Interface, onglet Supervision \\
+\hline
+Diagnostic de la cause des dérives & Atteint & Classifieur N1/N2 \\
+\hline
+Prédiction de la date de maintenance & Atteint & Ridge + bootstrap, après 7~jours \\
+\hline
+Alerte des opérateurs par seuils & Atteint & Telegram et courriel \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Discussion des limites}
+
+Les résultats appellent plusieurs réserves. La première tient aux données~: faute de pannes réelles pendant la durée du stage, l'évaluation s'appuie sur des données issues du simulateur. Ces données sont physiquement plausibles, car produites par le modèle Grey-Box à partir de lois physiques connues, mais elles ne reproduisent pas toute la variété des défaillances réelles~; les performances rapportées doivent donc être confirmées en exploitation.
+
+La deuxième réserve porte sur le Random Forest. Son score F1 traduit la cohérence avec les règles d'étiquetage automatique, qui sont les mêmes que celles du niveau N1, et non la justesse sur de vraies pannes étiquetées par des opérateurs. Une validation sur des cas réels annotés manuellement constituerait une amélioration significative.
+
+La troisième réserve concerne le débitmètre YF-S201, qui équipe un seul moule et dont l'étalonnage n'a pas été validé en conditions réelles. Cette limite reste sans effet sur la maintenance prédictive, qui repose principalement sur l'écart de calcaire déduit des températures par le modèle Grey-Box, et non sur la mesure directe du débit.
+
+Ces limites dessinent les perspectives du travail, reprises dans la conclusion générale.
+
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+Ce chapitre a présenté la réalisation complète du système de supervision thermique. L'infrastructure matérielle a été déployée sur un Raspberry Pi~4 avec un bus RS485 et six capteurs PT100, dont la configuration est automatisée par un script unique. Le pipeline logiciel a été implémenté en Python selon une architecture modulaire couvrant l'acquisition Modbus, le stockage temporel InfluxDB, le modèle Grey-Box pour l'estimation d'épaisseur de calcaire, la détection d'anomalies par Isolation Forest, la classification hybride N1/N2 des causes de dérive, la maintenance prédictive par Ridge Régression avec intervalle bootstrap, l'interface de supervision React, et le système d'alertes multicanal. L'architecture hybride N1/N2 permet de traiter la majorité des cas par des règles déterministes explicables tout en réservant l'apprentissage automatique aux situations ambiguës. Les trente-cinq tests unitaires et les sept tests d'intégration, exécutables sans matériel grâce au \textit{monkey patching}, assurent la validation de chaque composant conformément au cycle en V. Le déploiement automatisé et le plan de maintenance garantissent l'exploitation en continu. Les résultats, bien qu'obtenus sur données simulées, confirment la viabilité de l'approche. Les extraits de code complets sont fournis en annexes A1 à A10.

@@ -1,0 +1,110 @@
+pi@raspberrypi:~/industrial-supervision-predictive-maintenance/ml$ cd ~/industrial-supervision-predictive-maintenance && git pull && cd tests && python data_generator.py && cd .. && cd ml && python train_models.py --days 60 --eval --plots
+remote: Enumerating objects: 28, done.
+remote: Counting objects: 100% (28/28), done.
+remote: Compressing objects: 100% (6/6), done.
+remote: Total 17 (delta 14), reused 14 (delta 11), pack-reused 0 (from 0)
+Unpacking objects: 100% (17/17), 2.70 KiB | 98.00 KiB/s, done.
+From https://github.com/inass-belkhiri/industrial-supervision-predictive-maintenance
+   45e9b93..1f10365  master     -> origin/master
+Updating 45e9b93..1f10365
+Fast-forward
+ .gitignore                                      |   9 ++++++-
+ backend/main.py                                 |  11 --------
+ ml/cause_classifier.py                          |  10 ++++----
+ ml/train_models.py                              |  42 +++++++++++++-----------------
+ ml/train_synthetic.py                           |   2 +-
+ n8n_workflows/workflow_1_alertes.json           | 140 ----------------------------------------------------------------------------------------------------
+ n8n_workflows/workflow_2_rapport_quotidien.json | 156 ----------------------------------------------------------------------------------------------------------------
+ tests/data_generator.py                         |   8 ++----
+ tests/test_cause_classifier.py                  |   9 +++----
+ tests/train_sim_models.py                       |   1 -
+ 10 files changed, 36 insertions(+), 352 deletions(-)
+ delete mode 100644 n8n_workflows/workflow_1_alertes.json
+ delete mode 100644 n8n_workflows/workflow_2_rapport_quotidien.json
+2026-06-29 03:37:55,823 [INFO] Generating 60 days of synthetic data...
+2026-06-29 03:37:55,843 [INFO] InfluxDB connected — bucket: sensors  (version: True)
+2026-06-29 03:37:58,048 [INFO]   Day 10/60 — 20160 points written
+2026-06-29 03:38:00,256 [INFO]   Day 20/60 — 40320 points written
+2026-06-29 03:38:02,523 [INFO]   Day 30/60 — 60480 points written
+2026-06-29 03:38:04,737 [INFO]   Day 40/60 — 80640 points written
+2026-06-29 03:38:06,941 [INFO]   Day 50/60 — 100800 points written
+2026-06-29 03:38:09,140 [INFO]   Day 60/60 — 120960 points written
+2026-06-29 03:38:09,189 [INFO] InfluxDB client closed
+2026-06-29 03:38:09,189 [INFO] Done — 120960 total points injected into InfluxDB
+2026-06-29 03:38:13,121 [INFO] ============================================================
+2026-06-29 03:38:13,121 [INFO] TRAINING ML MODELS
+2026-06-29 03:38:13,122 [INFO]   Days:   60
+2026-06-29 03:38:13,122 [INFO]   Window: 30s
+2026-06-29 03:38:13,122 [INFO]   Step:   30s  (non-overlapping)
+2026-06-29 03:38:13,122 [INFO]   Eval:   True
+2026-06-29 03:38:13,123 [INFO] ============================================================
+2026-06-29 03:38:13,123 [INFO] Loading data from InfluxDB...
+2026-06-29 03:38:13,134 [INFO] InfluxDB connected — bucket: sensors  (version: True)
+2026-06-29 03:38:25,428 [INFO] Loaded temperatures: 6 molds, ~312144 total points
+2026-06-29 03:38:39,598 [INFO] Building sliding windows (size=30s, step=30s)...
+2026-06-29 03:38:39,599 [INFO] Common time range: 2026-05-30 00:00:25.542291+00:00 → 2026-06-29 02:38:08.921379+00:00
+2026-06-29 03:38:41,281 [INFO] Total timestamps in common range: 95359
+2026-06-29 03:38:41,735 [INFO] Isolation Forest model loaded from disk
+2026-06-29 03:38:50,130 [INFO]   Processed 1001 windows...
+2026-06-29 03:38:58,518 [INFO]   Processed 2001 windows...
+2026-06-29 03:39:06,984 [INFO]   Processed 3001 windows...
+2026-06-29 03:39:08,492 [INFO] Total windows extracted: 3178
+2026-06-29 03:39:08,589 [INFO] Isolation Forest model loaded from disk
+2026-06-29 03:39:10,023 [INFO] Isolation Forest model saved
+2026-06-29 03:39:10,024 [INFO] Isolation Forest trained on 3178 samples
+2026-06-29 03:39:10,024 [INFO] Isolation Forest trained and saved → models/isolation_forest.pkl
+2026-06-29 03:39:10,026 [INFO] Training Random Forest on 3178 samples (3 classes)...
+2026-06-29 03:39:10,048 [INFO] Random Forest loaded from disk
+2026-06-29 03:39:10,860 [INFO] Random Forest saved
+2026-06-29 03:39:10,860 [INFO] Random Forest trained on 3178 samples, classes: ['BULLES_AIR', 'CAUSE_INDETERMINEE', 'HEATER_RESISTANCE_HS']
+2026-06-29 03:39:10,861 [INFO] Random Forest trained and saved → models/random_forest.pkl
+2026-06-29 03:39:10,861 [INFO] Class distribution:
+2026-06-29 03:39:10,862 [INFO]   BULLES_AIR                       1716 (54.0%)
+2026-06-29 03:39:10,862 [INFO]   CAUSE_INDETERMINEE               1307 (41.1%)
+2026-06-29 03:39:10,862 [INFO]   HEATER_RESISTANCE_HS              155 (4.9%)
+2026-06-29 03:39:10,862 [INFO] Evaluating Random Forest (80/20 split)...
+2026-06-29 03:39:10,889 [INFO] Random Forest loaded from disk
+2026-06-29 03:39:11,645 [INFO] Random Forest saved
+2026-06-29 03:39:11,645 [INFO] Random Forest trained on 2542 samples, classes: ['BULLES_AIR', 'CAUSE_INDETERMINEE', 'HEATER_RESISTANCE_HS']
+
+Classification Report (Random Forest):
+                        precision    recall  f1-score   support
+
+       CALCAIRE_TUYAUX       0.00      0.00      0.00         0
+       HEATER_POMPE_HS       0.00      0.00      0.00         0
+  HEATER_RESISTANCE_HS       1.00      1.00      1.00        25
+NIVEAU_BAS_VANNE_PANNE       0.00      0.00      0.00         0
+            BULLES_AIR       0.99      1.00      0.99       303
+         FUITE_CIRCUIT       0.00      0.00      0.00         0
+    ISOLATION_DEGRADEE       0.00      0.00      0.00         0
+
+             micro avg       0.99      1.00      0.99       328
+             macro avg       0.28      0.29      0.28       328
+          weighted avg       0.99      1.00      0.99       328
+
+F1 macro: 0.2848
+
+Feature importances:
+  affected_molds_ratio           0.3109
+  delta_T_calcaire_slope         0.2408
+  variance_T_mold                0.1627
+  drift_R_squared                0.1316
+  slope_T_mold                   0.0997
+  flow_rate                      0.0320
+  flow_variance                  0.0124
+  autocorr_lag1                  0.0099
+  sudden_drop_flag               0.0000
+  flow_drop_flag                 0.0000
+2026-06-29 03:39:43,267 [INFO] Report saved to /home/pi/industrial-supervision-predictive-maintenance/ml/../backend/models/training_report.json
+2026-06-29 03:39:46,623 [INFO] generated new fontManager
+2026-06-29 03:39:47,475 [INFO] Isolation Forest model loaded from disk
+2026-06-29 03:39:47,489 [INFO] Random Forest loaded from disk
+2026-06-29 03:39:48,658 [INFO] IF histogram saved → /home/pi/industrial-supervision-predictive-maintenance/models/plots/if_score_histogram.png
+/home/pi/.local/lib/python3.13/site-packages/sklearn/metrics/_ranking.py:1174: UndefinedMetricWarning: No negative samples in y_true, false positive value should be meaningless
+  warnings.warn(
+2026-06-29 03:39:49,425 [INFO] ROC curve saved → /home/pi/industrial-supervision-predictive-maintenance/models/plots/if_roc_curve.png (AUC=nan)
+2026-06-29 03:40:25,814 [INFO] t-SNE plot saved → /home/pi/industrial-supervision-predictive-maintenance/models/plots/rf_tsne_clusters.png
+2026-06-29 03:40:25,815 [INFO] All plots generated in /home/pi/industrial-supervision-predictive-maintenance/models/plots
+2026-06-29 03:40:25,815 [INFO] Plots generated in models/plots/
+2026-06-29 03:40:25,816 [INFO] Done — models saved to backend/models/
+2026-06-29 03:40:25,816 [INFO] Restart the backend to load the new models.

@@ -1,0 +1,41 @@
+@startuml
+actor "Capteurs" as capt
+participant "ModbusManager" as mod
+participant "FlowSensor" as flow
+participant "MainApp" as main
+database "InfluxDB" as influx
+participant "GreyBoxModel" as gb
+participant "AnomalyDetector" as ad
+participant "CauseClassifier" as rf
+participant "Alerting" as alert
+participant "WebSocket\nFrontend" as ws
+
+loop every 1 seconde
+  capt -> mod: read_all_sensors()
+  mod --> main: List[SensorReading]
+  flow -> main: read_lpm()
+  main -> gb: compute(gid, mid, T, flow)
+  gb --> main: {delta_T, epaisseur_mm}
+
+  main -> ad: extract_features(T_history, flow_history, delta_T)
+  ad --> main: features_8d
+
+  main -> ad: predict(features)
+  alt anomaly detected
+    main -> rf: physical_rules(...)
+    alt cause not identified by rules
+      main -> rf: predict(features_10d)
+      rf --> main: {cause, confidence}
+    end
+    main -> alert: send_alert(...)
+  end
+
+  main -> influx: write_sensors(readings, delta_T)
+  main -> influx: write_flow(gid, flow)
+
+  main -> ws: broadcast(sensors, diagnostic)
+  ws --> frontend: mise à jour UI
+end
+
+note over main #FFB: 1 cycle ~ 1 seconde\n(config.ACQUISITION_HZ = 1)
+@enduml

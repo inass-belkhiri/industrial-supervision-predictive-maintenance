@@ -1,0 +1,29 @@
+@startuml
+left to right direction
+
+actor "Technicien\nMaintenance" as tech
+actor "Chef\n d'Équipe" as chef
+actor "Système" as sys
+
+rectangle "Supervision Thermique" {
+  tech --> (Consulter la supervision\nen temps réel)
+  tech --> (Consulter le diagnostic\nintelligent)
+  tech --> (Consulter la maintenance\nprédictive)
+  tech --> (Visualiser l'historique)
+
+  chef --> (Consulter la supervision\nen temps réel)
+  chef --> (Consulter le diagnostic\nintelligent)
+  chef --> (Consulter la maintenance\nprédictive)
+  chef --> (Visualiser l'historique)
+  chef --> (Modifier la configuration\nRaspberry Pi)
+  chef --> (Changer le mode\nde simulation)
+  chef --> (Gérer les alertes)
+
+  (Envoyer les notifications\nd'alerte) --> sys
+  (Ré-entraîner les modèles\nML automatiquement) --> sys
+  (Acquérir les données\ncapteurs) --> sys
+}
+
+note right of (Modifier la configuration\nRaspberry Pi) : Accès SSH, modification\nconfig.py, redémarrage backend
+note right of (Gérer les alertes) : Seuils, destinataires\nTelegram, Email
+@enduml

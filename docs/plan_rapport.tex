@@ -1,0 +1,192 @@
+\documentclass[12pt,a4paper]{report}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{titlesec}
+
+\renewcommand{\cfttoctitlefont}{\huge\bfseries}
+\renewcommand{\cftbeforetoctitleskip}{0pt}
+\renewcommand{\cftaftertoctitleskip}{20pt}
+\setlength{\cftbeforesecskip}{6pt}
+\setlength{\cftbeforesubsecskip}{3pt}
+\setlength{\cftbeforesubsubsecskip}{2pt}
+
+\setcounter{tocdepth}{3}
+\pagenumbering{gobble}
+
+\begin{document}
+
+\tableofcontents
+
+\newpage
+
+\section*{Remerciements}
+\addcontentsline{toc}{section}{Remerciements}
+
+\section*{Liste des figures}
+\addcontentsline{toc}{section}{Liste des figures}
+
+\section*{Liste des tableaux}
+\addcontentsline{toc}{section}{Liste des tableaux}
+
+\section*{Liste des algorithmes}
+\addcontentsline{toc}{section}{Liste des algorithmes}
+
+\section*{Acronyms}
+\addcontentsline{toc}{section}{Acronyms}
+
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+\chapter{Présentation de l'entreprise d'accueil}
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+\section{Le groupe Yazaki}
+\subsection{Historique}
+\subsection{Chiffres clés et présence mondiale}
+\subsection{Domaines d'activité}
+\section{YMOK : Yazaki Morocco Kénitra}
+\subsection{Création et localisation}
+\subsection{Fiche signalétique}
+\subsection{Politique qualité et démarche 5S}
+\section{Structure organisationnelle}
+\section{Activités et processus de production}
+\subsection{Zone de coupe -- P1}
+\subsection{Zone de pré-assemblage -- P2}
+\subsection{Zone d'assemblage -- P3}
+\subsection{Zone de foaming}
+\section{Déroulement du stage}
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+\chapter{Contexte général du Projet}
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+\section{Description de la problématique}
+\section{Analyse des modes de défaillance (AMDEC)}
+\section{Cahier des charges}
+\subsection{Objectifs}
+\subsection{Exigences fonctionnelles}
+\subsection{Exigences non fonctionnelles}
+\section{Étude préalable}
+\subsection{Approches envisageables}
+\subsection{Limites de la solution existante}
+\section{Plan d'action : le cycle en V}
+\section{Planning prévisionnel}
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+\chapter{Étude détaillée du projet}
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+\section{Architecture globale du système}
+\subsection{Architecture à trois niveaux}
+\section{Architecture matérielle}
+\section{Architecture détaillée}
+\section{Conception logicielle -- Diagrammes UML}
+\subsection{Diagramme de cas d'utilisation}
+\subsection{Diagramme de classes}
+\subsection{Diagramme d'activité}
+\subsection{Diagramme de séquence}
+\subsection{Diagramme d'états}
+\subsection{Modèle conceptuel des données (MCD)}
+\section{Modèle Grey-Box pour l'estimation de l'encrassement}
+\subsection{Principe du soft sensing}
+\subsection{Équations du bilan thermique}
+\subsection{Niveaux d'urgence}
+\section{Détection d'anomalies par Isolation Forest}
+\subsection{Principe théorique}
+\subsection{Caractéristiques utilisées}
+\section{Classification des causes -- Approche hybride}
+\subsection{Principe à deux niveaux}
+\subsection{Règles physiques (Niveau 1)}
+\subsection{Modèle aléatoire (Niveau 2)}
+\section{Prédiction de maintenance par régression Ridge}
+\subsection{Principe}
+\subsection{Estimation de l'incertitude par Bootstrap}
+\subsection{Fréquence et seuils}
+\section{Système d'alertes}
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+\chapter{Réalisation et résultats}
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+\section{Outils et technologies de réalisation}
+\subsection{Matériel utilisé}
+\subsection{Stack backend}
+\subsection{Stack frontend}
+\subsection{Modules d'apprentissage automatique}
+\subsection{Librairies Python}
+\subsection{Protocoles de communication}
+\section{Réalisation matérielle}
+\subsection{Configuration du système embarqué}
+\subsection{Câblage du bus RS485 en daisy chain}
+\subsection{Adressage des modules de transmission}
+\subsubsection{Détection du bus et adressage}
+\subsubsection{Vérification du bus}
+\subsection{Raccordement du débitmètre YF-S201}
+\section{Réalisation logicielle}
+\subsection{Acquisition des données}
+\subsubsection{Acquisition de la température}
+\subsubsection{Acquisition du débit}
+\subsection{Stockage temporel -- InfluxDB}
+\subsubsection{Modèles pré-entraînés persistés}
+\subsection{Orchestration du pipeline de diagnostic}
+\subsubsection{Boucle principale d'acquisition}
+\subsubsection{Ré-entraînement programmé des modèles}
+\subsection{Modèle Grey-Box -- implémentation du soft sensing}
+\subsection{Détection d'anomalies par Isolation Forest}
+\subsubsection{Extraction des caractéristiques}
+\subsubsection{Modèle et décision}
+\subsection{Classification des causes -- approche hybride N1/N2}
+\subsubsection{Architecture à deux niveaux}
+\subsubsection{Règles physiques (N1)}
+\subsubsection{Random Forest (N2)}
+\subsubsection{Performance du classifieur}
+\subsubsection{Étiquetage automatique pour l'entraînement supervisé}
+\subsection{Maintenance prédictive par Ridge Régression}
+\subsubsection{Implémentation}
+\subsubsection{Intervalle de confiance par Bootstrap}
+\subsection{Interface de supervision}
+\subsubsection{Architecture frontend}
+\subsection{Système d'alertes multicanal}
+\subsubsection{Canal Telegram}
+\subsubsection{Canal SMTP}
+\subsubsection{Niveaux de sévérité et déclenchement}
+\section{Tests et vérification}
+\subsection{Stratégie de test}
+\subsection{Tests unitaires}
+\subsection{Tests d'intégration}
+\subsubsection{Monkey patching des dépendances matérielles}
+\subsection{Tests d'acceptation}
+\section{Mise en œuvre et plan de maintenance}
+\subsection{Déploiement}
+\subsection{Mise en service et validation terrain}
+\subsubsection{Procédure de mise en service}
+\subsection{Plan de maintenance}
+\subsubsection{Maintenance préventive}
+\subsubsection{Maintenance corrective}
+\subsubsection{Surveillance de la santé du système}
+\section{Résultats et interprétation}
+\subsection{Performances des modèles}
+\subsection{Confrontation au cahier des charges}
+\subsection{Discussion des limites}
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+\chapter*{Conclusion générale}
+\addcontentsline{toc}{chapter}{Conclusion générale}
+
+\chapter*{Annexes}
+\addcontentsline{toc}{chapter}{Annexes}
+
+\chapter*{Bibliographie}
+\addcontentsline{toc}{chapter}{Bibliographie}
+
+\chapter*{Glossaire}
+\addcontentsline{toc}{chapter}{Glossaire}
+
+\end{document}

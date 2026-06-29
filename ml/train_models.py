@@ -179,6 +179,7 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
     labels_list = []
     flow_rate_samples = []
     flow_drop_samples = []
+    normal_temps_list = []
 
     n_molds = len(all_mold_keys)
 
@@ -290,9 +291,16 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
             nominal_flow=config.FLOW_DEFAULT_LPM,
         )
 
+        # Check if all temperatures across all molds are within normal range [42, 48]°C
+        all_temps_in_window = []
+        for key_vals in temp_history.values():
+            all_temps_in_window.extend(key_vals)
+        is_normal = all(42.0 <= t <= 48.0 for t in all_temps_in_window) if all_temps_in_window else False
+
         if_features_list.append(features_8d)
         rf_features_list.append(rf_feat)
         labels_list.append(label)
+        normal_temps_list.append(is_normal)
 
         if (i - window_size) % 10000 == 0 and i > window_size:
             log.info("  Processed %d windows...", len(if_features_list))
@@ -302,15 +310,28 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
         log.info("DEBUG flow_rate sample (first %d): min=%.2f max=%.2f flow_drop_true=%d/%d",
                  len(flow_rate_samples), min(flow_rate_samples), max(flow_rate_samples),
                  sum(flow_drop_samples), len(flow_drop_samples))
-    return if_features_list, rf_features_list, labels_list
+
+    n_normal = sum(normal_temps_list)
+    log.info("Windows with all temps in [42, 48]°C: %d / %d (%.1f%%)",
+             n_normal, len(normal_temps_list), 100.0 * n_normal / len(normal_temps_list) if normal_temps_list else 0)
+    return if_features_list, rf_features_list, labels_list, normal_temps_list
 
 
-def train_isolation_forest(if_features, labels=None):
-    """Train Isolation Forest on 8D feature vectors (unsupervised — uses all data)."""
-    X = np.vstack(if_features)
+def train_isolation_forest(if_features, normal_mask=None):
+    """Train Isolation Forest on 8D feature vectors — only on normal windows (all temps in [42,48]°C).
+    This ensures the IF learns what 'normal' looks like and flags anything deviating as anomalous.
+    """
+    if normal_mask is not None:
+        X_normal = np.vstack([if_features[i] for i in range(len(if_features)) if normal_mask[i]])
+        excluded = len(if_features) - len(X_normal)
+        log.info("Isolation Forest: using %d normal windows (excluded %d non-normal)",
+                 len(X_normal), excluded)
+    else:
+        X_normal = np.vstack(if_features)
+        log.info("Isolation Forest: no mask provided, using all %d windows", len(X_normal))
     iso = AnomalyDetector()
     iso.trained = False
-    iso.train(X)
+    iso.train(X_normal)
     log.info("Isolation Forest trained and saved → models/isolation_forest.pkl")
 
 
@@ -458,14 +479,14 @@ def main():
     result = build_windows(temp_data, dT_data, flow_data, args.window, args.step)
     if result is None:
         sys.exit(1)
-    if_features, rf_features, labels = result
+    if_features, rf_features, labels, normal_temps_list = result
 
     if len(if_features) < 100:
         log.error("Too few windows (%d) — need at least 100", len(if_features))
         sys.exit(1)
 
-    # 3. Train Isolation Forest (normal samples only)
-    train_isolation_forest(if_features, labels)
+    # 3. Train Isolation Forest (normal samples only — all temps in [42, 48]°C)
+    train_isolation_forest(if_features, normal_temps_list)
 
     # 4. Train Random Forest
     train_random_forest(rf_features, labels)

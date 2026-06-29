@@ -20,7 +20,7 @@ sys.modules['influxdb_manager'] = mock_influx
 
 mock_modbus = MagicMock()
 mock_modbus.init_modbus = AsyncMock()
-mock_modbus.close_modbus = MagicMock()
+mock_modbus.close_modbus = AsyncMock()
 mock_modbus.read_all_sensors = AsyncMock(return_value=[])
 mock_modbus.read_heater_temp = AsyncMock(return_value=45.0)
 sys.modules['modbus_manager'] = mock_modbus

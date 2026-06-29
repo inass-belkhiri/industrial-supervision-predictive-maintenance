@@ -1,5 +1,8 @@
+import sys
 import pytest
 from datetime import datetime
+# Remove any mocked modbus_manager left by other tests (e.g. test_api_integration)
+sys.modules.pop('modbus_manager', None)
 from modbus_manager import SensorReading
 
 

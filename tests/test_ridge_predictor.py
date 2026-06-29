@@ -13,8 +13,10 @@ from ridge_predictor import RidgePredictor
 class TestRidgePredictor:
     def test_fit_insufficient_data(self):
         predictor = RidgePredictor(group_id=1, mold_id=1, delta_T_max=5.0)
+        # Mock persistence AFTER init so _load doesn't load pre-trained model from disk
         predictor._save = lambda: None
         predictor._load = lambda: None
+        predictor.model = None
 
         predictor.fit([
             {'day_offset': 0, 'value': 1.0},

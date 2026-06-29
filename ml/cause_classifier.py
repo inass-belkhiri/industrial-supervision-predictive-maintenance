@@ -22,23 +22,22 @@ _PROJECT_ROOT = os.path.dirname(_ML_DIR)
 MODEL_PATH   = os.path.join(_PROJECT_ROOT, 'models', 'random_forest.pkl')
 ENCODER_PATH = os.path.join(_PROJECT_ROOT, 'models', 'label_encoder.pkl')
 
-CLASSES = [
-    'CALCAIRE_TUYAUX',
-    'HEATER_POMPE_HS',
-    'HEATER_RESISTANCE_HS',
-    'NIVEAU_BAS_VANNE_PANNE',
-    'BULLES_AIR',
-    'FUITE_CIRCUIT',
-    'ISOLATION_DEGRADEE'
-]
-
-
 class CauseClassifier:
     """
     Two-level diagnostic:
         Level 1 — deterministic physical rules (100% certain cases)
         Level 2 — Random Forest for ambiguous cases
     """
+
+    CLASSES = [
+        'CALCAIRE_TUYAUX',
+        'HEATER_POMPE_HS',
+        'HEATER_RESISTANCE_HS',
+        'NIVEAU_BAS_VANNE_PANNE',
+        'BULLES_AIR',
+        'FUITE_CIRCUIT',
+        'ISOLATION_DEGRADEE'
+    ]
 
     FEATURE_NAMES = [
         'slope_T_mold',

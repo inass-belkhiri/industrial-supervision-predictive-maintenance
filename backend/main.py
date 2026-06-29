@@ -160,6 +160,7 @@ async def set_sim_mode(req: _ModeRequest):
 # ── WebSocket Heartbeat ────────────────────────────────────────────────────────────
 async def ws_heartbeat_loop():
     """Silently check dead WS clients every 30s by sending a minimal keepalive."""
+    global ws_clients
     while True:
         await asyncio.sleep(30)
         dead = set()

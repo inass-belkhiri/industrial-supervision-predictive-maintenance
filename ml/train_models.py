@@ -530,6 +530,18 @@ def main():
                 labels_rf=labels,
                 pseudo_labels_if=np.array([0 if n else 1 for n in normal_temps_list]),
             )
+
+            # Ridge fit plots (per-mold)
+            from ridge_predictor import RidgePredictor
+            plots_dir = os.path.join(os.path.dirname(__file__), '..', 'backend', 'models', 'plots')
+            os.makedirs(plots_dir, exist_ok=True)
+            for (gid, mid) in config.SENSOR_MAP:
+                records = influx.query_daily_mean_mold(gid, mid, days_back=args.days)
+                if records:
+                    dT_max = config.T_HEATER - config.T_MOLD_CRITICAL  # 5.0°C
+                    ridge = RidgePredictor(gid, mid, dT_max)
+                    ridge.fit(records)
+                    ridge.plot_fit(save_path=os.path.join(plots_dir, f'ridge_fit_{gid}_{mid}.png'))
             log.info("Plots generated in models/plots/")
         except Exception as plot_exc:
             log.warning("Could not generate plots: %s", plot_exc)

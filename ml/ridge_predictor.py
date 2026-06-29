@@ -133,6 +133,64 @@ class RidgePredictor:
         crossings = np.where(y_pred >= self.delta_T_max)[0]
         return int(crossings[0]) if len(crossings) > 0 else None
 
+    def plot_fit(self, save_path: Optional[str] = None) -> Optional[str]:
+        """Plot actual delta_T_calcaire data + Ridge polynomial fit + bootstrap IC + critical threshold.
+        Returns the save path if the plot was generated, None otherwise.
+        """
+        if self.model is None or self.X_data is None or self.y_data is None:
+            return None
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+
+            N = len(self.X_data)
+            x_smooth = np.linspace(int(self.X_data.min()), int(self.X_data.max()) + 30, 200).reshape(-1, 1)
+            x_poly = self.poly.transform(x_smooth)
+            y_pred = self.model.predict(x_poly)
+
+            # Bootstrap confidence band
+            y_boots = []
+            for _ in range(config.BOOTSTRAP_N):
+                idx = np.random.choice(N, size=N, replace=True)
+                m = Ridge(alpha=1.0)
+                m.fit(self.poly.transform(self.X_data[idx]), self.y_data[idx])
+                y_boots.append(m.predict(x_poly))
+            y_boots = np.array(y_boots)
+            y_low = np.percentile(y_boots, 5, axis=0)
+            y_high = np.percentile(y_boots, 95, axis=0)
+
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.scatter(self.X_data, self.y_data, color='#2196F3', s=20, alpha=0.6, label='delta_T_calcaire réel')
+            ax.plot(x_smooth, y_pred, color='#FF5722', linewidth=2, label='Fit polynomial (deg=2)')
+            ax.fill_between(x_smooth.ravel(), y_low, y_high, alpha=0.2, color='#FF5722', label='IC 90% bootstrap')
+            ax.axhline(self.delta_T_max, color='#F44336', linestyle='--', linewidth=1.5, label=f'Seuil critique ({self.delta_T_max:.1f}°C)')
+
+            # Maintenance prediction
+            maint = self.predict_maintenance()
+            if maint:
+                ax.axvline(int(self.X_data[-1]) + maint['jours_maintenance'],
+                           color='#4CAF50', linestyle=':', linewidth=1.5,
+                           label=f"Maintenance prévue dans {maint['jours_maintenance']}j")
+
+            ax.set_xlabel("Jours depuis le début")
+            ax.set_ylabel("delta_T_calcaire (°C)")
+            ax.set_title(f"Ridge — Groupe {self.group_id} Moule {self.mold_id}")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+            if save_path is None:
+                save_path = os.path.join(config.MODEL_DIR if hasattr(config, 'MODEL_DIR') else MODEL_DIR,
+                                         '..', 'plots', f'ridge_fit_{self.group_id}_{self.mold_id}.png')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            fig.savefig(save_path, dpi=150, bbox_inches='tight')
+            plt.close(fig)
+            log.info("Ridge fit plot saved → %s", save_path)
+            return save_path
+        except Exception as exc:
+            log.warning("Could not generate Ridge plot: %s", exc)
+            return None
+
     # ── Persistence ──────────────────────────────────────────────────────────
 
     def _save(self):

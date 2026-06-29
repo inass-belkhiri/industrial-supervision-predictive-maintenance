@@ -98,15 +98,6 @@ class CauseClassifier:
                 'method':     'physical_rule',
             }
 
-        # Leak: flow below nominal but not collapsed, gradual
-        if flow_rate < 0.7 * nominal_flow and flow_rate > 2.0 \
-           and not sudden_drop and affected_ratio > 0.3:
-            return {
-                'cause':      'FUITE_CIRCUIT',
-                'confidence': 1.0,
-                'method':     'physical_rule',
-            }
-
         return None   # ambiguous — use ML
 
     # ── Level 2 — Random Forest ───────────────────────────────────────────────

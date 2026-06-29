@@ -61,34 +61,52 @@ LOCAL_DEFECT_DURATION = (2, 4)
 
 TEMPERATURE_SCENARIOS = {
     'normal': {
-        'weight': 0.75,
+        'weight': 0.55,
         'T_std':  0.3,
         'flow_mean': 16.5,
         'flow_std':  0.5,
+        'heater_offset': 0.0,
+        'T_scenario_offset': 0.0,
     },
     'calcaire': {
         'weight': 0.10,
         'T_std':  0.4,
         'flow_mean': 13.0,
         'flow_std':  1.0,
+        'heater_offset': 0.0,
+        'T_scenario_offset': -0.3,
     },
     'pompe_hs': {
-        'weight': 0.05,
-        'T_std':  1.5,
+        'weight': 0.07,
+        'T_std':  0.8,
         'flow_mean': 3.0,
         'flow_std':  0.5,
+        'heater_offset': -1.5,
+        'T_scenario_offset': -4.0,
+    },
+    'resistance_hs': {
+        'weight': 0.06,
+        'T_std':  0.5,
+        'flow_mean': 14.0,
+        'flow_std':  1.0,
+        'heater_offset': -3.0,
+        'T_scenario_offset': -2.0,
+    },
+    'vanne_panne': {
+        'weight': 0.04,
+        'T_std':  1.0,
+        'flow_mean': 0.3,
+        'flow_std':  0.1,
+        'heater_offset': -0.5,
+        'T_scenario_offset': -3.0,
     },
     'bruit': {
-        'weight': 0.05,
+        'weight': 0.10,
         'T_std':  1.2,
         'flow_mean': 15.0,
         'flow_std':  3.0,
-    },
-    'critique': {
-        'weight': 0.05,
-        'T_std':  2.0,
-        'flow_mean': 10.0,
-        'flow_std':  2.0,
+        'heater_offset': 0.0,
+        'T_scenario_offset': 0.0,
     },
 }
 
@@ -139,13 +157,12 @@ def generate_daily_temperature(
 
     records = []
     prev_temp = None
+    sc_offset = scenario.get('T_scenario_offset', 0.0)
     for minute in range(0, 1440, 5):
         cycle = daily_cycle_offset(minute)
-        scenario_offset = -3.0 if chosen == 'critique' else 0.0
-        if chosen == 'critique' and minute > 360:
-            scenario_offset -= 0.004 * (minute - 360)
+        drift_ramp = sc_offset * (1 - math.exp(-0.01 * minute)) if sc_offset < 0 else 0.0
 
-        target = config.T_HEATER + group_offset + mold_offset + cycle + drift + scenario_offset
+        target = config.T_HEATER + group_offset + mold_offset + cycle + drift + sc_offset + drift_ramp
 
         if prev_temp is None:
             prev_temp = target + random.gauss(0, 0.08)
@@ -196,6 +213,9 @@ def inject_historical_data():
 
         batch = []
 
+        heater_temp = max(25, config.T_HEATER + scenario.get('heater_offset', 0.0)
+                          + random.gauss(0, 0.2) * (day / N_DAYS))
+
         for (gid, mid), (slave, reg) in config.SENSOR_MAP.items():
             temps = generate_daily_temperature(day, gid, mid, scenario, scenario_name)
             g_flow = generate_flow_rate(day, scenario, gid, scenario_name)
@@ -226,6 +246,7 @@ def inject_historical_data():
                     .field("threshold",       _clean(config.T_HEATER, 1))
                     .field("deviation",       _clean(deviation, 1))
                     .field("delta_T_calcaire", _clean(gb['delta_T_calcaire'], 2))
+                    .field("temp_heater",     _clean(heater_temp, 1))
                     .time(ts)
                 )
                 if (gid, mid) == (1, 1):

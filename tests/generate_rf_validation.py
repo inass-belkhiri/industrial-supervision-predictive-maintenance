@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'ml'))
 
 import numpy as np
 
-from cause_classifier import CauseClassifier, CLASSES
+from cause_classifier import CauseClassifier
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), 'rf_validation_dataset.json')
 
@@ -144,8 +144,8 @@ def evaluate_rf(dataset: List[Dict]) -> Dict:
     total = len(dataset)
 
     from sklearn.metrics import classification_report, confusion_matrix
-    report = classification_report(y_true, y_pred, labels=CLASSES, zero_division=0)
-    cm = confusion_matrix(y_true, y_pred, labels=CLASSES)
+    report = classification_report(y_true, y_pred, labels=CauseClassifier.CLASSES, zero_division=0)
+    cm = confusion_matrix(y_true, y_pred, labels=CauseClassifier.CLASSES)
 
     return {
         'accuracy': correct / total,
@@ -153,7 +153,7 @@ def evaluate_rf(dataset: List[Dict]) -> Dict:
         'total': total,
         'classification_report': report,
         'confusion_matrix': cm.tolist(),
-        'classes': CLASSES,
+        'classes': CauseClassifier.CLASSES,
     }
 
 
@@ -166,7 +166,7 @@ def main():
     with open(OUTPUT_PATH, 'w') as f:
         json.dump(dataset, f, indent=2)
     print(f"Dataset généré : {len(dataset)} cas → {OUTPUT_PATH}")
-    for cause in CLASSES:
+    for cause in CauseClassifier.CLASSES:
         count = sum(1 for d in dataset if d['cause'] == cause)
         print(f"  {cause:<30s} {count} cas")
 

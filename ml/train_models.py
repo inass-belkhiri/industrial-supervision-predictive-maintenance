@@ -43,43 +43,33 @@ def parse_args():
 
 
 def load_temperatures(days: int):
-    """Query temperature data + heater temp from InfluxDB.
-    Returns: (temp_data, heater_temp)
-      - temp_data: dict {(group_id, mold_id): [(timestamp, temperature), ...]}
-      - heater_temp: float (latest heater temp value, or config default)
+    """Query temperature data from InfluxDB (only temperature field, no heater sensor).
+    Returns: dict {(group_id, mold_id): [(timestamp, temperature), ...]}
     """
     if influx._query_api is None:
         influx.init_influxdb()
     if influx._query_api is None:
         log.error("Cannot connect to InfluxDB")
-        return {}, config.T_HEATER
+        return {}
     flux = f'''
     from(bucket: "{config.INFLUX_BUCKET}")
       |> range(start: -{days}d)
       |> filter(fn: (r) => r._measurement == "temperature")
-      |> filter(fn: (r) => r._field == "temperature" or r._field == "temp_heater")
+      |> filter(fn: (r) => r._field == "temperature")
       |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-      |> keep(columns: ["_time", "group_id", "mold_id", "temperature", "temp_heater"])
+      |> keep(columns: ["_time", "group_id", "mold_id", "temperature"])
     '''
     tables = influx._query_api.query(flux, org=config.INFLUX_ORG)
     temp_data = defaultdict(list)
-    heater_temp = config.T_HEATER
     for table in tables:
         for record in table.records:
             key = (int(record['group_id']), int(record['mold_id']))
             temp_data[key].append((record.get_time(), float(record['temperature'])))
-            try:
-                if record['temp_heater'] is not None:
-                    ht = float(record['temp_heater'])
-                    if ht < heater_temp:
-                        heater_temp = ht
-            except (KeyError, TypeError, ValueError):
-                pass
     for key in temp_data:
         temp_data[key].sort(key=lambda x: x[0])
-    log.info("Loaded temperatures: %d molds, ~%d total points (heater: %.1f°C)",
-             len(temp_data), sum(len(v) for v in temp_data.values()), heater_temp)
-    return dict(temp_data), heater_temp
+    log.info("Loaded temperatures: %d molds, ~%d total points",
+             len(temp_data), sum(len(v) for v in temp_data.values()))
+    return dict(temp_data)
 
 
 def load_delta_T_calcaires(days: int):
@@ -128,7 +118,7 @@ def load_flows(days: int):
     return dict(flow_data)
 
 
-def build_windows(temp_data, dT_data, flow_data, window_size, step, heater_temp=None):
+def build_windows(temp_data, dT_data, flow_data, window_size, step):
     """Slide a window across the aligned data, yielding one feature vector per step.
     Steps are in seconds. Each window covers `window_size` seconds.
     """
@@ -281,7 +271,7 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step, heater_temp=
             f[7],                     # autocorr_lag1
         ]])
 
-        # Auto-label
+        # Auto-label (no heater sensor in real system — detect via flow + temp patterns)
         label = CauseClassifier.auto_label(
             affected_ratio=float(f[2]),
             sudden_drop=bool(f[3]),
@@ -290,7 +280,6 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step, heater_temp=
             variance=float(f[1]),
             R_squared=drift_R_squared,
             delta_T_calcaire_slope=delta_T_calcaire_slope,
-            temp_heater=heater_temp if heater_temp is not None else config.T_HEATER,
             nominal_flow=config.FLOW_DEFAULT_LPM,
         )
 
@@ -415,7 +404,7 @@ def main():
 
     # 1. Load data
     log.info("Loading data from InfluxDB...")
-    temp_data, heater_temp = load_temperatures(args.days)
+    temp_data = load_temperatures(args.days)
     dT_data = load_delta_T_calcaires(args.days)
     flow_data = load_flows(args.days)
 
@@ -424,8 +413,8 @@ def main():
         sys.exit(1)
 
     # 2. Build windows
-    log.info("Building sliding windows (size=%ds, step=%ds) (heater: %.1f°C)...", args.window, args.step, heater_temp)
-    result = build_windows(temp_data, dT_data, flow_data, args.window, args.step, heater_temp)
+    log.info("Building sliding windows (size=%ds, step=%ds)...", args.window, args.step)
+    result = build_windows(temp_data, dT_data, flow_data, args.window, args.step)
     if result is None:
         sys.exit(1)
     if_features, rf_features, labels = result

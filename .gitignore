@@ -20,4 +20,11 @@ frontend/dist/
 
 # OS
 Thumbs.db
-.DS_Store
+.DS_Storemodels/
+backend/nul
+
+git_corrompu_backup/
+err.txt
+err1.md
+err1.txt
+nul

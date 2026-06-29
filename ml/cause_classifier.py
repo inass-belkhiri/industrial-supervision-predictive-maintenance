@@ -67,15 +67,15 @@ class CauseClassifier:
         sudden_drop:      bool,
         flow_rate:        float,
         flow_drop:        bool,
-        temp_heater:      float = 45.0,
         nominal_flow:     float = 16.5,
     ) -> Optional[Dict]:
         """
         Apply deterministic physical rules.
         Returns a result dict if the case is certain, or None for ambiguous cases.
+        Note: no heater temperature sensor (HEATER_TEMP_SENSOR = None in config).
         """
-        # Heater resistance failure: T_heater significantly below setpoint
-        if temp_heater < 44.0 and affected_ratio > 0.8:
+        # Heater resistance failure: no heat → all molds cold, but flow normal (pump OK)
+        if affected_ratio > 0.85 and flow_rate > 0.7 * nominal_flow and not flow_drop:
             return {
                 'cause':      'HEATER_RESISTANCE_HS',
                 'confidence': 1.0,
@@ -175,14 +175,14 @@ class CauseClassifier:
         variance:              float,
         R_squared:             float,
         delta_T_calcaire_slope: float,
-        temp_heater:           float = 45.0,
         variance_threshold:    float = 0.1,
         nominal_flow:          float = 16.5,
     ) -> str:
         """
         Rule-based auto-labeling to generate training data from unlabeled history.
+        No heater sensor — uses flow + temperature patterns.
         """
-        if temp_heater < 44.0 and affected_ratio > 0.8:
+        if affected_ratio > 0.85 and flow_rate > 0.7 * nominal_flow and not flow_drop:
             return 'HEATER_RESISTANCE_HS'
         if affected_ratio > 0.8 and flow_drop:
             return 'HEATER_POMPE_HS'

@@ -195,16 +195,6 @@ async def _cycle():
 
     readings = await modbus.read_all_sensors(calibration_temps)
 
-    # Read heater temperature (simulated or real)
-    temp_heater = None
-    try:
-        import modbus_simulator
-        temp_heater = modbus_simulator.read_heater_temp()
-    except ImportError:
-        temp_heater = await modbus.read_heater_temp()
-    if temp_heater is None:
-        temp_heater = config.T_HEATER
-
     # Read all 4 flow sensors
     flow_readings = {}
     for gid, sensor in flow_sensors.items():
@@ -296,7 +286,6 @@ async def _cycle():
                 sudden_drop=sudden_drop,
                 flow_rate=flow_lpm,
                 flow_drop=flow_drop,
-                temp_heater=temp_heater,
             )
             cause_result = rule_result if rule_result else rf.predict(rf_features)
 

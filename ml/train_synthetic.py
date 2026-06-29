@@ -201,7 +201,7 @@ def build_windows(temp_data, dT_data, flow_data, window_size=30, step=30):
             flow_drop=bool(flow_drop), flow_rate=float(f[4]),
             variance=float(f[1]), R_squared=drift_R2,
             delta_T_calcaire_slope=dT_slope,
-            temp_heater=config.T_HEATER, nominal_flow=config.FLOW_DEFAULT_LPM,
+            nominal_flow=config.FLOW_DEFAULT_LPM,
         )
 
         if_features.append(features_8d)

@@ -187,7 +187,6 @@ async def collect_all_for_rf():
                 variance=float(f[1]),
                 R_squared=drift_R_squared,
                 delta_T_calcaire_slope=delta_T_calcaire_slope,
-                temp_heater=config.T_HEATER,
                 nominal_flow=config.FLOW_DEFAULT_LPM,
             ))
 

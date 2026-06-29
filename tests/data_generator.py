@@ -81,7 +81,7 @@ TEMPERATURE_SCENARIOS = {
         'T_std':  1.0,
         'flow_mean': 3.0,
         'flow_std':  0.5,
-        'heater_offset': -2.0,
+        'heater_offset': 0.0,
         'T_scenario_offset': -8.0,
     },
     'resistance_hs': {
@@ -97,7 +97,7 @@ TEMPERATURE_SCENARIOS = {
         'T_std':  1.2,
         'flow_mean': 0.3,
         'flow_std':  0.1,
-        'heater_offset': -1.0,
+        'heater_offset': 0.0,
         'T_scenario_offset': -6.0,
     },
     'bruit': {
@@ -213,9 +213,6 @@ def inject_historical_data():
 
         batch = []
 
-        heater_temp = max(25, config.T_HEATER + scenario.get('heater_offset', 0.0)
-                          + random.gauss(0, 0.2) * (day / N_DAYS))
-
         for (gid, mid), (slave, reg) in config.SENSOR_MAP.items():
             temps = generate_daily_temperature(day, gid, mid, scenario, scenario_name)
             g_flow = generate_flow_rate(day, scenario, gid, scenario_name)
@@ -246,7 +243,6 @@ def inject_historical_data():
                     .field("threshold",       _clean(config.T_HEATER, 1))
                     .field("deviation",       _clean(deviation, 1))
                     .field("delta_T_calcaire", _clean(gb['delta_T_calcaire'], 2))
-                    .field("temp_heater",     _clean(heater_temp, 1))
                     .time(ts)
                 )
                 if (gid, mid) == (1, 1):

@@ -27,6 +27,12 @@ class CauseClassifier:
     Two-level diagnostic:
         Level 1 — deterministic physical rules (100% certain cases)
         Level 2 — Random Forest for ambiguous cases
+
+    CAUSE_INDETERMINEE is NOT a trained class. It is a fallback mechanism
+    triggered by the confidence threshold (config.RF_CONFIDENCE_THRESHOLD).
+    The RF is trained only on the 7 real AMDEC failure modes (CLASSES list).
+    When no physical rule matches AND the RF's top confidence is below threshold,
+    the system returns CAUSE_INDETERMINEE — a responsible refusal to guess.
     """
 
     CLASSES = [
@@ -106,6 +112,10 @@ class CauseClassifier:
         """
         Classify the cause from the 10-feature vector.
         Returns { cause, confidence, proba_dict, method }.
+
+        CAUSE_INDETERMINEE is not a learned class — it emerges from low confidence.
+        If the top probability is below config.RF_CONFIDENCE_THRESHOLD, the system
+        refuses to guess and returns CAUSE_INDETERMINEE (safe fallback for industry).
         """
         if not self.trained or self.model is None:
             return {'cause': 'CAUSE_INDETERMINEE', 'confidence': 0.0, 'method': 'default', 'proba_dict': {}}
@@ -181,6 +191,11 @@ class CauseClassifier:
         """
         Rule-based auto-labeling to generate training data from unlabeled history.
         No heater sensor — uses flow + temperature patterns.
+
+        Returns 'CAUSE_INDETERMINEE' when no rule matches. These windows MUST be
+        excluded from RF training (done in train_random_forest / evaluate_models)
+        because CAUSE_INDETERMINEE is not a coherent physical class — it is a
+        fallback mechanism triggered by confidence threshold at inference time.
         """
         if affected_ratio > 0.85 and flow_rate > 0.7 * nominal_flow and not flow_drop:
             return 'HEATER_RESISTANCE_HS'

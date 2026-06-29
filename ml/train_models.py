@@ -337,8 +337,14 @@ def train_isolation_forest(if_features, normal_mask=None):
 
 def train_random_forest(rf_features, labels):
     """Train Random Forest on 10D feature vectors with auto-labels.
-    N1 causes (handled by physical rules) and CAUSE_INDETERMINEE (normal/no anomaly)
-    are excluded — only specific N2 classes go to RF.
+    Two categories are excluded:
+      - N1 causes (HEATER_RESISTANCE_HS, HEATER_POMPE_HS, NIVEAU_BAS_VANNE_PANNE):
+        handled deterministically by physical_rules() — no ML needed.
+      - CAUSE_INDETERMINEE: not a coherent physical class. It is a fallback
+        triggered by confidence threshold at inference, NOT a learned label.
+        Including it would pollute RF decision boundaries with a garbage-bin class.
+    Only specific N2 classes go to RF (currently: BULLES_AIR, FUITE_CIRCUIT,
+    CALCAIRE_TUYAUX, ISOLATION_DEGRADEE).
     """
     EXCLUDE = {'HEATER_RESISTANCE_HS', 'HEATER_POMPE_HS', 'NIVEAU_BAS_VANNE_PANNE', 'CAUSE_INDETERMINEE'}
     keep_mask = [l not in EXCLUDE for l in labels]
@@ -365,7 +371,9 @@ def train_random_forest(rf_features, labels):
 
 
 def evaluate_models(rf_features, labels):
-    """Split train/test and report metrics for Random Forest (N2 only)."""
+    """Split train/test and report metrics for Random Forest (N2 only).
+    CAUSE_INDETERMINEE excluded: it is not a physical class but a confidence
+    threshold fallback. Training or evaluating on it would pollute metrics."""
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import classification_report, confusion_matrix, f1_score
 

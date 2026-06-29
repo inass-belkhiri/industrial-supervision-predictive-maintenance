@@ -394,7 +394,7 @@ def save_report(results, path='backend/models/training_report.json'):
 def main():
     args = parse_args()
     log.info("=" * 60)
-    log.info("TRAINING ML MODELS ON REAL DATA")
+    log.info("TRAINING ML MODELS")
     log.info("  Days:   %d", args.days)
     log.info("  Window: %ds", args.window)
     log.info("  Step:   %ds  %s", args.step,

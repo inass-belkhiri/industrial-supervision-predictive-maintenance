@@ -194,6 +194,8 @@ def inject_historical_data():
         scenario_name = generate_daily_pattern(day)
         scenario = TEMPERATURE_SCENARIOS[scenario_name]
 
+        batch = []
+
         for (gid, mid), (slave, reg) in config.SENSOR_MAP.items():
             temps = generate_daily_temperature(day, gid, mid, scenario, scenario_name)
             g_flow = generate_flow_rate(day, scenario, gid, scenario_name)
@@ -227,34 +229,29 @@ def inject_historical_data():
                 )
                 if (gid, mid) == (1, 1):
                     p = p.field("epaisseur_mm", _clean(gb['epaisseur_mm'], 2))
-                try:
-                    influx._write_api.write(
-                        bucket=config.INFLUX_BUCKET,
-                        org=config.INFLUX_ORG,
-                        record=p,
-                    )
-                    total_points += 1
-                except Exception as e:
-                    log.warning("Write error day %d mold (%d,%d): %s", day, gid, mid, e)
+                batch.append(p)
 
         for gid in config.FLOW_SENSOR_PINS:
-            flow_val = generate_flow_rate(day, scenario, gid, scenario_name)
-            ts = timestamp + timedelta(hours=12)
-            p = (
-                Point("flow")
-                .tag("group_id", str(gid))
-                .tag("unit", "lpm")
-                .field("flow_rate", _clean(flow_val, 2))
-            )
-            try:
-                influx._write_api.write(
-                    bucket=config.INFLUX_BUCKET,
-                    org=config.INFLUX_ORG,
-                    record=p,
+            for minute in range(0, 1440, 5):
+                flow_val = generate_flow_rate(day, scenario, gid, scenario_name)
+                ts = timestamp + timedelta(minutes=minute)
+                p = (
+                    Point("flow")
+                    .tag("group_id", str(gid))
+                    .tag("unit", "lpm")
+                    .field("flow_rate", _clean(flow_val, 2))
                 )
-                total_points += 1
-            except Exception as e:
-                log.warning("Flow write error day %d group %d: %s", day, gid, e)
+                batch.append(p)
+
+        try:
+            influx._write_api.write(
+                bucket=config.INFLUX_BUCKET,
+                org=config.INFLUX_ORG,
+                record=batch,
+            )
+            total_points += len(batch)
+        except Exception as e:
+            log.warning("Batch write error day %d: %s", day, e)
 
         if (day + 1) % 10 == 0:
             log.info("  Day %d/%d — %d points written", day + 1, N_DAYS, total_points)

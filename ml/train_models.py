@@ -211,8 +211,11 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
             if vals:
                 flow_history[gid] = vals
 
-        if not temp_history or not flow_history:
+        if not temp_history:
             continue
+        if not flow_history:
+            for gid in all_group_ids:
+                flow_history[gid] = [config.FLOW_DEFAULT_LPM]
 
         # Get current delta_T_calcaires (last value in window)
         current_dT = {}

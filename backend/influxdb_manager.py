@@ -132,7 +132,7 @@ def query_calibration_temp(group_id: int, mold_id: int) -> Optional[float]:
 
     flux = f'''
     from(bucket: "{config.INFLUX_BUCKET}")
-      |> range(start: 0)
+      |> range(start: -2y)
       |> filter(fn: (r) => r._measurement == "temperature")
       |> filter(fn: (r) => r._field == "temperature")
       |> filter(fn: (r) => r.group_id == "{group_id}" and r.mold_id == "{mold_id}")
@@ -142,7 +142,11 @@ def query_calibration_temp(group_id: int, mold_id: int) -> Optional[float]:
         tables = _query_api.query(flux, org=config.INFLUX_ORG)
         for table in tables:
             for record in table.records:
-                return record.get_value()
+                val = record.get_value()
+                if val is not None and val > config.T_MOLD_WARNING:
+                    return val
+                log.warning("Calibration mold (%d,%d): rejecting suspicious temp %.1f°C", group_id, mold_id, val)
+                return None
         return None
     except Exception as exc:
         log.error("InfluxDB calibration query error: %s", exc)

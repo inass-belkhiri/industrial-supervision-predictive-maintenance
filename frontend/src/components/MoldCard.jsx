@@ -82,7 +82,7 @@ export default function MoldCard({ mold }) {
             Moule {mold_id}
           </span>
           {nomenclature && (
-            <span className="text-xs font-mono text-indigo-400 ml-2">
+            <span className="text-sm font-bold font-mono text-indigo-400 ml-2">
               {nomenclature}
             </span>
           )}

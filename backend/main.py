@@ -290,6 +290,11 @@ async def _cycle():
             )
             cause_result = rule_result if rule_result else rf.predict(rf_features)
 
+            # Si aucun moule n'est réellement en ALERTE/CRITIQUE, c'est un faux positif de l'IF
+            if not affected_molds:
+                cause_result = {'cause': 'NORMAL', 'confidence': 1.0, 'method': 'default', 'proba_dict': {}}
+                anomaly_result = {'anomaly_detected': False, 'anomaly_score': None}
+
             # ENRICHISSEMENT AMDEC (NOUVEAU)
             cause = cause_result.get('cause')
             if cause and cause in config.AMDEC_FAILURE_MODES:

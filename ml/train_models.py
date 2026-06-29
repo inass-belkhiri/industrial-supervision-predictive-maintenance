@@ -315,37 +315,54 @@ def train_isolation_forest(if_features, labels=None):
 
 
 def train_random_forest(rf_features, labels):
-    """Train Random Forest on 10D feature vectors with auto-labels."""
+    """Train Random Forest on 10D feature vectors with auto-labels.
+    N1 causes (handled by physical rules) are excluded — only N2 + INDETERMINEE go to RF.
+    """
+    N1_CAUSES = {'HEATER_RESISTANCE_HS', 'HEATER_POMPE_HS', 'NIVEAU_BAS_VANNE_PANNE'}
+    n1_mask = [l not in N1_CAUSES for l in labels]
+    X_n2 = np.vstack([rf_features[i] for i in range(len(labels)) if n1_mask[i]])
+    labels_n2 = [labels[i] for i in range(len(labels)) if n1_mask[i]]
+
+    removed = len(labels) - len(labels_n2)
+    if removed:
+        log.info("Excluded %d N1 samples (handled by physical rules)", removed)
+
     log.info("Training Random Forest on %d samples (%d classes)...",
-             len(rf_features), len(set(labels)))
-    X = np.vstack(rf_features)
+             len(X_n2), len(set(labels_n2)))
     rf = CauseClassifier()
     rf.trained = False
-    rf.train(X, labels)
+    rf.train(X_n2, labels_n2)
     log.info("Random Forest trained and saved → models/random_forest.pkl")
 
     # Class distribution
     from collections import Counter
-    dist = Counter(labels)
-    log.info("Class distribution:")
+    dist = Counter(labels_n2)
+    log.info("N2 class distribution:")
     for cls, count in sorted(dist.items(), key=lambda x: -x[1]):
         log.info("  %-30s %6d (%.1f%%)", cls, count, count / len(labels) * 100)
 
 
 def evaluate_models(rf_features, labels):
-    """Split train/test and report metrics for Random Forest."""
+    """Split train/test and report metrics for Random Forest (N2 only)."""
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
     log.info("Evaluating Random Forest (80/20 split)...")
 
-    # Temporal split (no shuffle — time series!)
-    X = np.vstack(rf_features)
-    y = np.array(labels)
-    split = int(len(X) * 0.8)
+    # Filter out N1 causes (detected by physical rules, not RF)
+    N1_CAUSES = {'HEATER_RESISTANCE_HS', 'HEATER_POMPE_HS', 'NIVEAU_BAS_VANNE_PANNE'}
+    n1_mask = [l not in N1_CAUSES for l in labels]
+    X_all = np.vstack([rf_features[i] for i in range(len(labels)) if n1_mask[i]])
+    y_all = np.array([labels[i] for i in range(len(labels)) if n1_mask[i]])
 
-    X_train, X_test = X[:split], X[split:]
-    y_train, y_test = y[:split], y[split:]
+    removed = len(labels) - len(y_all)
+    if removed:
+        log.info("Excluded %d N1 samples from evaluation", removed)
+
+    # Temporal split (no shuffle — time series!)
+    split = int(len(X_all) * 0.8)
+    X_train, X_test = X_all[:split], X_all[split:]
+    y_train, y_test = y_all[:split], y_all[split:]
 
     rf = CauseClassifier()
     rf.trained = False
@@ -359,7 +376,7 @@ def evaluate_models(rf_features, labels):
     f1_macro = f1_score(y_test, y_pred, labels=CauseClassifier.CLASSES, average='macro', zero_division=0)
 
     report = classification_report(y_test, y_pred, labels=CauseClassifier.CLASSES, zero_division=0)
-    print("\nClassification Report (Random Forest):")
+    print("\nClassification Report (Random Forest — N2 only):")
     print(report)
     print(f"F1 macro: {f1_macro:.4f}")
 
@@ -375,6 +392,7 @@ def evaluate_models(rf_features, labels):
         'train_samples': len(X_train),
         'test_samples': len(X_test),
         'split_ratio': '80/20 temporal',
+        'n1_excluded': removed,
     }
 
 

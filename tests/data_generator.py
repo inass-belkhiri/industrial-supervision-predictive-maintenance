@@ -73,7 +73,7 @@ TEMPERATURE_SCENARIOS = {
         'flow_mean': 13.0,
         'flow_std':  1.0,
         'T_scenario_offset': -1.0,
-        'intra_day_drift': -0.06,
+        'intra_day_drift': -0.002,
     },
     'pompe_hs': {
         'weight': 0.08,
@@ -99,19 +99,19 @@ TEMPERATURE_SCENARIOS = {
     'fuite_circuit': {
         'weight': 0.08,
         'T_std':  0.5,
-        'flow_mean': 8.0,
+        'flow_mean': 10.0,
         'flow_std':  0.5,
-        'T_scenario_offset': -1.5,
-        'flow_decay': -0.002,
+        'T_scenario_offset': -5.0,
+        'flow_decay': -0.001,
     },
     'isolation': {
         'weight': 0.08,
         'T_std':  0.3,
         'flow_mean': 16.5,
         'flow_std':  0.5,
-        'T_scenario_offset': -0.5,
-        'intra_day_drift': -0.03,
-        'n_affected_molds': 1,
+        'T_scenario_offset': -6.0,
+        'intra_day_drift': -0.015,
+        'affected_mold': (1, 1),
     },
     'bruit': {
         'weight': 0.13,
@@ -161,7 +161,8 @@ def generate_daily_temperature(
 
     intra_day_drift = scenario.get('intra_day_drift', 0.0)
     n_affected = scenario.get('n_affected_molds', 6)
-    is_affected = mold_id <= n_affected
+    affected_mold = scenario.get('affected_mold', None)
+    is_affected = (group_id, mold_id) == affected_mold if affected_mold else (mold_id <= n_affected)
 
     defect_mold = None
     defect_duration = 0

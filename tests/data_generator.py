@@ -16,7 +16,7 @@ import influxdb_manager as influx
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 log = logging.getLogger(__name__)
 
-N_DAYS   = 60
+N_DAYS   = 90
 SAMPLE_HZ = 1
 
 
@@ -61,14 +61,14 @@ LOCAL_DEFECT_DURATION = (2, 4)
 
 TEMPERATURE_SCENARIOS = {
     'normal': {
-        'weight': 0.60,
+        'weight': 0.50,
         'T_std':  0.3,
         'flow_mean': 16.5,
         'flow_std':  0.5,
         'T_scenario_offset': 0.0,
     },
     'calcaire': {
-        'weight': 0.06,
+        'weight': 0.08,
         'T_std':  0.3,
         'flow_mean': 13.0,
         'flow_std':  1.0,
@@ -76,21 +76,21 @@ TEMPERATURE_SCENARIOS = {
         'intra_day_drift': -0.003,
     },
     'pompe_hs': {
-        'weight': 0.04,
+        'weight': 0.07,
         'T_std':  1.0,
         'flow_mean': 3.0,
         'flow_std':  0.5,
         'T_scenario_offset': -8.0,
     },
     'resistance_hs': {
-        'weight': 0.05,
+        'weight': 0.08,
         'T_std':  0.6,
         'flow_mean': 14.0,
         'flow_std':  1.0,
         'T_scenario_offset': -5.0,
     },
     'vanne_panne': {
-        'weight': 0.05,
+        'weight': 0.07,
         'T_std':  1.2,
         'flow_mean': 0.3,
         'flow_std':  0.1,
@@ -105,7 +105,7 @@ TEMPERATURE_SCENARIOS = {
         'flow_decay': -0.001,
     },
     'isolation': {
-        'weight': 0.04,
+        'weight': 0.07,
         'T_std':  0.3,
         'flow_mean': 16.5,
         'flow_std':  0.5,
@@ -114,7 +114,7 @@ TEMPERATURE_SCENARIOS = {
         'affected_mold': (1, 1),
     },
     'bruit': {
-        'weight': 0.08,
+        'weight': 0.05,
         'T_std':  1.2,
         'flow_mean': 15.0,
         'flow_std':  3.0,

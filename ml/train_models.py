@@ -401,10 +401,16 @@ def evaluate_models(rf_features, labels):
     class_labels = sorted(set(y_test))
     f1_macro = f1_score(y_test, y_pred, labels=class_labels, average='macro', zero_division=0)
 
+    all_classes = sorted(set(y_all))
+    missing = [c for c in all_classes if c not in class_labels]
+    if missing:
+        print(f"\n⚠  Classes absentes du test set (0 support) : {', '.join(missing)}")
+        print(f"   F1 macro calculée uniquement sur les {len(class_labels)} classes présentes.")
+
     report = classification_report(y_test, y_pred, labels=class_labels, zero_division=0)
     print("\nClassification Report (Random Forest — all AMDEC classes):")
     print(report)
-    print(f"F1 macro: {f1_macro:.4f}")
+    print(f"F1 macro: {f1_macro:.4f}  (sur {len(class_labels)}/{len(all_classes)} classes présentes dans le test)")
 
     # Feature importances
     print("\nFeature importances:")

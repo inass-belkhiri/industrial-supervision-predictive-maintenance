@@ -519,6 +519,11 @@ def main():
             X_if = np.vstack(if_features)
             X_rf = np.vstack(rf_features)
 
+            # Filter CAUSE_INDETERMINEE from t-SNE — it is not a trained class
+            rf_keep = [l != 'CAUSE_INDETERMINEE' for l in labels]
+            X_rf_filtered = np.vstack([X_rf[i] for i in range(len(labels)) if rf_keep[i]])
+            labels_filtered = [l for i, l in enumerate(labels) if rf_keep[i]]
+
             iso = AnomalyDetector()
             rfc = CauseClassifier()
 
@@ -526,8 +531,8 @@ def main():
                 iso_model=iso,
                 rf_model=rfc,
                 features_if=X_if,
-                features_rf=X_rf,
-                labels_rf=labels,
+                features_rf=X_rf_filtered,
+                labels_rf=labels_filtered,
                 pseudo_labels_if=np.array([0 if n else 1 for n in normal_temps_list]),
             )
 

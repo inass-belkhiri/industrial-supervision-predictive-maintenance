@@ -77,28 +77,28 @@ TEMPERATURE_SCENARIOS = {
         'T_scenario_offset': -0.3,
     },
     'pompe_hs': {
-        'weight': 0.07,
-        'T_std':  0.8,
+        'weight': 0.10,
+        'T_std':  1.0,
         'flow_mean': 3.0,
         'flow_std':  0.5,
-        'heater_offset': -1.5,
-        'T_scenario_offset': -4.0,
+        'heater_offset': -2.0,
+        'T_scenario_offset': -8.0,
     },
     'resistance_hs': {
-        'weight': 0.06,
-        'T_std':  0.5,
+        'weight': 0.08,
+        'T_std':  0.6,
         'flow_mean': 14.0,
         'flow_std':  1.0,
         'heater_offset': -3.0,
-        'T_scenario_offset': -2.0,
+        'T_scenario_offset': -5.0,
     },
     'vanne_panne': {
-        'weight': 0.04,
-        'T_std':  1.0,
+        'weight': 0.06,
+        'T_std':  1.2,
         'flow_mean': 0.3,
         'flow_std':  0.1,
-        'heater_offset': -0.5,
-        'T_scenario_offset': -3.0,
+        'heater_offset': -1.0,
+        'T_scenario_offset': -6.0,
     },
     'bruit': {
         'weight': 0.10,
@@ -158,16 +158,16 @@ def generate_daily_temperature(
     records = []
     prev_temp = None
     sc_offset = scenario.get('T_scenario_offset', 0.0)
+    alpha = 0.30 if abs(sc_offset) > 4.0 else 0.12 if abs(sc_offset) > 2.0 else 0.03
     for minute in range(0, 1440, 5):
         cycle = daily_cycle_offset(minute)
-        drift_ramp = sc_offset * (1 - math.exp(-0.01 * minute)) if sc_offset < 0 else 0.0
 
-        target = config.T_HEATER + group_offset + mold_offset + cycle + drift + sc_offset + drift_ramp
+        target = config.T_HEATER + group_offset + mold_offset + cycle + drift + sc_offset
 
         if prev_temp is None:
             prev_temp = target + random.gauss(0, 0.08)
         else:
-            prev_temp = 0.97 * prev_temp + 0.03 * target + random.gauss(0, 0.08)
+            prev_temp = (1-alpha) * prev_temp + alpha * target + random.gauss(0, 0.08)
         t = prev_temp
 
         if mold_id == defect_mold and minute < defect_duration * 5:

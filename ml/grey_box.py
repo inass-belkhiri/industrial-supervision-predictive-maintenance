@@ -76,7 +76,7 @@ class GreyBoxModel:
         flow_mold   = flow_m3s   # débit identique pour tous les moules (série)
 
         delta_T_measured  = config.T_HEATER - T_mold
-        delta_T_norm      = self.delta_T_normal.get(key, 1.5)   # default 1.5 if not calibrated
+        delta_T_norm      = self.delta_T_normal.get(key, 0.0)   # default 0.0 if not calibrated (assume clean pipe)
 
         # Thermal loss attributable to calcaire only (cannot be negative)
         delta_T_calcaire  = max(0.0, delta_T_measured - delta_T_norm)

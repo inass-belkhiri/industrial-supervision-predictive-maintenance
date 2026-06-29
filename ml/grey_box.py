@@ -105,6 +105,7 @@ class GreyBoxModel:
             'Q':                 float(f"{Q:.2f}"),
             'R_calcaire':        float(f"{R_calcaire:.6f}"),
             'epaisseur_mm':      float(f"{epaisseur_mm:.2f}"),
+            'urgence':           urgence,
             'degradation_pct':   float(f"{degradation_pct:.1f}"),
         }
 

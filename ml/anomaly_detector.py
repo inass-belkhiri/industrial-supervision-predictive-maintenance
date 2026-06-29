@@ -163,6 +163,10 @@ class AnomalyDetector:
         if not self.trained or self.model is None or self.scaler is None:
             return {'anomaly_detected': False, 'anomaly_score': None}
 
+        # Reject physically impossible features (all zeros, NaN, or inf)
+        if not np.isfinite(features).all() or np.allclose(features, 0):
+            return {'anomaly_detected': False, 'anomaly_score': None}
+
         X_scaled = self.scaler.transform(features)
         label    = self.model.predict(X_scaled)[0]      # +1 normal, -1 anomaly
         score    = self.model.score_samples(X_scaled)[0] # lower = more anomalous

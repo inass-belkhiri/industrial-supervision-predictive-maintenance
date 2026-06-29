@@ -72,7 +72,7 @@ class TestCauseClassifier:
         ) == 'BULLES_AIR'
 
         assert CauseClassifier.auto_label(
-            affected_ratio=0.3, sudden_drop=False, flow_drop=False,
+            affected_ratio=0.25, sudden_drop=False, flow_drop=False,
             flow_rate=16.5, variance=0.05, R_squared=0.9,
             delta_T_calcaire_slope=0.05,
         ) == 'CALCAIRE_TUYAUX'

@@ -61,14 +61,14 @@ LOCAL_DEFECT_DURATION = (2, 4)
 
 TEMPERATURE_SCENARIOS = {
     'normal': {
-        'weight': 0.40,
+        'weight': 0.60,
         'T_std':  0.3,
         'flow_mean': 16.5,
         'flow_std':  0.5,
         'T_scenario_offset': 0.0,
     },
     'calcaire': {
-        'weight': 0.12,
+        'weight': 0.06,
         'T_std':  0.3,
         'flow_mean': 13.0,
         'flow_std':  1.0,
@@ -76,14 +76,14 @@ TEMPERATURE_SCENARIOS = {
         'intra_day_drift': -0.003,
     },
     'pompe_hs': {
-        'weight': 0.08,
+        'weight': 0.04,
         'T_std':  1.0,
         'flow_mean': 3.0,
         'flow_std':  0.5,
         'T_scenario_offset': -8.0,
     },
     'resistance_hs': {
-        'weight': 0.06,
+        'weight': 0.05,
         'T_std':  0.6,
         'flow_mean': 14.0,
         'flow_std':  1.0,
@@ -105,7 +105,7 @@ TEMPERATURE_SCENARIOS = {
         'flow_decay': -0.001,
     },
     'isolation': {
-        'weight': 0.08,
+        'weight': 0.04,
         'T_std':  0.3,
         'flow_mean': 16.5,
         'flow_std':  0.5,
@@ -114,7 +114,7 @@ TEMPERATURE_SCENARIOS = {
         'affected_mold': (1, 1),
     },
     'bruit': {
-        'weight': 0.13,
+        'weight': 0.08,
         'T_std':  1.2,
         'flow_mean': 15.0,
         'flow_std':  3.0,

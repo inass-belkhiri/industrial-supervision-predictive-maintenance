@@ -231,9 +231,25 @@ def inject_historical_data():
     total_points = 0
     calibration_done = set()
 
+    # Delete old data to avoid stale data corrupting training
+    try:
+        from influxdb_client.client.delete_api import DeleteApi
+        delete_api = DeleteApi(influx._client)
+        delete_api.delete(
+            start=datetime(2020, 1, 1),
+            stop=datetime.now(),
+            predicate='_measurement="temperature" or _measurement="flow"',
+            bucket=config.INFLUX_BUCKET,
+            org=config.INFLUX_ORG,
+        )
+        log.info("Old InfluxDB data deleted successfully")
+    except Exception as exc:
+        log.warning("Could not delete old data: %s", exc)
+
     for day in range(N_DAYS):
         timestamp = datetime.now() - timedelta(days=N_DAYS - day)
-        scenario_name = generate_daily_pattern(day)
+        # Day 0 forced to 'normal' so grey-box calibration is on clean 45°C baseline
+        scenario_name = 'normal' if day == 0 else generate_daily_pattern(day)
         scenario = TEMPERATURE_SCENARIOS[scenario_name]
 
         batch = []

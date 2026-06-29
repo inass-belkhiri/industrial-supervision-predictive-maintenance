@@ -48,6 +48,11 @@ def load_temperatures(days: int):
       - temp_data: dict {(group_id, mold_id): [(timestamp, temperature), ...]}
       - heater_temp: float (latest heater temp value, or config default)
     """
+    if influx._query_api is None:
+        influx.init_influxdb()
+    if influx._query_api is None:
+        log.error("Cannot connect to InfluxDB")
+        return {}, config.T_HEATER
     flux = f'''
     from(bucket: "{config.INFLUX_BUCKET}")
       |> range(start: -{days}d)

@@ -528,7 +528,7 @@ def main():
                 features_if=X_if,
                 features_rf=X_rf,
                 labels_rf=labels,
-                pseudo_labels_if=np.array([1 if l != 'NORMAL' else 0 for l in labels]),
+                pseudo_labels_if=np.array([0 if n else 1 for n in normal_temps_list]),
             )
             log.info("Plots generated in models/plots/")
         except Exception as plot_exc:

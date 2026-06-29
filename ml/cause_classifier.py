@@ -208,7 +208,7 @@ class CauseClassifier:
             return 'FUITE_CIRCUIT'
         if affected_ratio < 0.3 and R_squared > 0.7:
             return 'ISOLATION_DEGRADEE'
-        return 'CAUSE_INDETERMINEE'
+        return 'NORMAL'
 
     # ── Persistence ──────────────────────────────────────────────────────────
 

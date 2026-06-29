@@ -297,13 +297,7 @@ def build_windows(temp_data, dT_data, flow_data, window_size, step):
 
 
 def train_isolation_forest(if_features, labels=None):
-    """Train Isolation Forest on 8D feature vectors (normal samples only)."""
-    if labels is not None:
-        normal_mask = [l == 'NORMAL' for l in labels]
-        if_features = [f for f, m in zip(if_features, normal_mask) if m]
-        n_dropped = sum(not m for m in normal_mask)
-        log.info("Filtered to %d normal samples (dropped %d anomalous)", len(if_features), n_dropped)
-    log.info("Training Isolation Forest on %d samples...", len(if_features))
+    """Train Isolation Forest on 8D feature vectors (unsupervised — uses all data)."""
     X = np.vstack(if_features)
     iso = AnomalyDetector()
     iso.trained = False

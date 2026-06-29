@@ -73,7 +73,7 @@ TEMPERATURE_SCENARIOS = {
         'flow_mean': 13.0,
         'flow_std':  1.0,
         'T_scenario_offset': -1.0,
-        'intra_day_drift': -0.002,
+        'intra_day_drift': -0.006,
     },
     'pompe_hs': {
         'weight': 0.08,

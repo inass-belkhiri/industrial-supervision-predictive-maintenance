@@ -192,10 +192,10 @@ class CauseClassifier:
             return 'FUITE_CIRCUIT'
         if delta_T_calcaire_slope > 0.01 and R_squared > 0.7 and affected_ratio < 0.3:
             return 'CALCAIRE_TUYAUX'
+        if 0.0 < affected_ratio <= 0.25:
+            return 'ISOLATION_DEGRADEE'
         if variance > variance_threshold and R_squared < 0.3 and affected_ratio < 0.4:
             return 'BULLES_AIR'
-        if 0.0 < affected_ratio <= 0.2:
-            return 'ISOLATION_DEGRADEE'
         return 'CAUSE_INDETERMINEE'
 
     # ── Persistence ──────────────────────────────────────────────────────────

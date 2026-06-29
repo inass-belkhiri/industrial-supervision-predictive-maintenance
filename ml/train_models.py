@@ -70,7 +70,9 @@ def load_temperatures(days: int):
             temp_data[key].append((record.get_time(), float(record['temperature'])))
             try:
                 if record['temp_heater'] is not None:
-                    heater_temp = float(record['temp_heater'])
+                    ht = float(record['temp_heater'])
+                    if ht < heater_temp:
+                        heater_temp = ht
             except (KeyError, TypeError, ValueError):
                 pass
     for key in temp_data:

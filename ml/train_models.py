@@ -544,7 +544,7 @@ def main():
 
             # Ridge fit plots (per-mold)
             from ridge_predictor import RidgePredictor
-            plots_dir = os.path.join(os.path.dirname(__file__), '..', 'backend', 'models', 'plots')
+            plots_dir = os.path.join(os.path.dirname(__file__), '..', 'models', 'plots')
             os.makedirs(plots_dir, exist_ok=True)
             for (gid, mid) in config.SENSOR_MAP:
                 records = influx.query_daily_mean_mold(gid, mid, days_back=args.days)
@@ -557,7 +557,7 @@ def main():
         except Exception as plot_exc:
             log.warning("Could not generate plots: %s", plot_exc)
 
-    log.info("Done — models saved to backend/models/")
+    log.info("Done — models saved to models/")
     log.info("Restart the backend to load the new models.")
 
 

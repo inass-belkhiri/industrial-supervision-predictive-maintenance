@@ -29,7 +29,7 @@ def init_influxdb():
     """Initialize the InfluxDB client. Uses the existing token/org/bucket from config."""
     global _client, _write_api, _query_api
     try:
-        _client    = InfluxDBClient(url=config.INFLUX_URL, token=config.INFLUX_TOKEN, org=config.INFLUX_ORG, timeout=5_000)
+        _client    = InfluxDBClient(url=config.INFLUX_URL, token=config.INFLUX_TOKEN, org=config.INFLUX_ORG, timeout=config.INFLUX_TIMEOUT)
         _write_api = _client.write_api(write_options=ASYNCHRONOUS)
         _query_api = _client.query_api()
         health = _client.ping()

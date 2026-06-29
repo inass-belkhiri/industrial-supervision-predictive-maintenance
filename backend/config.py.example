@@ -58,7 +58,8 @@ T_MOLD_CRITICAL   = 40.0    # < 40 → CRITIQUE
 INFLUX_URL    = 'http://localhost:8086'
 INFLUX_TOKEN  = 'YOUR_INFLUX_TOKEN_HERE'
 INFLUX_ORG    = 'temperature-monitoring'
-INFLUX_BUCKET = 'sensors'
+INFLUX_BUCKET  = 'sensors'
+INFLUX_TIMEOUT = 120_000    # ms (2 min) — requis pour les grosses requêtes (60j)
 
 # ── ALERTES — Telegram et Email (envoi direct) ───────────────────────────────
 # Remplacer les valeurs par vos tokens Telegram et identifiants SMTP.

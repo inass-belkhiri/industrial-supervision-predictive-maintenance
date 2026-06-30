@@ -147,7 +147,6 @@ const CAUSE_ACTIONS = {
   CAUSE_INDETERMINEE: [
     'Verifier l\'etat des capteurs de temperature',
     'Analyser les donnees supplementaires (pression, débit)',
-    'Contacter le service maintenance pour diagnostic manuel',
     'Surveiller l\'evolution de la situation',
   ],
 }

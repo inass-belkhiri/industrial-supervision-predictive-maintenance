@@ -58,6 +58,8 @@ def set_mode(mode: str):
     _call_counter = 0
     _base_temps   = {}
     _clear_backend_histories()
+    import flow_simulator
+    flow_simulator.set_mode(mode)
     log.info("Simulator mode set to '%s' — %s", mode, SIMULATION_MODES[mode])
 
 

@@ -89,7 +89,7 @@ class CauseClassifier:
             }
 
         # Heater resistance failure: no heat → all molds cold, but flow normal (pump OK)
-        if affected_ratio > 0.85 and flow_rate > 0.7 * nominal_flow and not flow_drop:
+        if affected_ratio >= 0.8 and flow_rate > 0.7 * nominal_flow and not flow_drop:
             return {
                 'cause':      'HEATER_RESISTANCE_HS',
                 'confidence': 1.0,
@@ -199,7 +199,7 @@ class CauseClassifier:
         """
         if affected_ratio > 0.7 and flow_rate < 1.0:
             return 'NIVEAU_BAS_VANNE_PANNE'
-        if affected_ratio > 0.85 and flow_rate > 0.7 * nominal_flow and not flow_drop:
+        if affected_ratio >= 0.8 and flow_rate > 0.7 * nominal_flow and not flow_drop:
             return 'HEATER_RESISTANCE_HS'
         if affected_ratio > 0.8 and flow_drop and flow_rate >= 1.0:
             return 'HEATER_POMPE_HS'

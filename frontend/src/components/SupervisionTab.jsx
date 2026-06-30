@@ -33,7 +33,7 @@ function GroupBadge({ sensors }) {
   const labels = { OK: 'Normal', ALERTE: 'Alerte', ERREUR: 'Erreur', CRITIQUE: 'Critique' }
 
   return (
-    <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${styles[worst]}`}>
+    <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${styles[worst]}`}>
       {labels[worst]}
     </span>
   )

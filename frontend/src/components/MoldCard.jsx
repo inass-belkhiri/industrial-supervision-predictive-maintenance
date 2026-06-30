@@ -82,7 +82,7 @@ export default function MoldCard({ mold }) {
             Moule {mold_id}
           </span>
           {nomenclature && (
-            <span className="text-sm font-bold font-mono text-indigo-400 ml-2">
+            <span className="text-lg font-bold font-mono text-indigo-400 ml-2">
               {nomenclature}
             </span>
           )}
@@ -90,7 +90,7 @@ export default function MoldCard({ mold }) {
             {POSITION_LABELS[position] ?? position}
           </div>
         </div>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
           status === 'OK'
             ? 'status-ok'
             : status === 'ALERTE'

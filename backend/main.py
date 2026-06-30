@@ -9,12 +9,15 @@ import os
 # Allow importing from the sibling ml/ folder
 # Structure: supervision_thermique/backend/main.py
 #            supervision_thermique/ml/grey_box.py
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ML_DIR   = os.path.join(ROOT_DIR, 'ml')
+ROOT_DIR  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ML_DIR    = os.path.join(ROOT_DIR, 'ml')
+TESTS_DIR = os.path.join(ROOT_DIR, 'tests')
 if ML_DIR not in sys.path:
     sys.path.insert(0, ML_DIR)
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
+if TESTS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_DIR)
 
 import asyncio
 import json
@@ -150,6 +153,7 @@ async def set_sim_mode(req: _ModeRequest):
         modbus_simulator.set_mode(req.mode)
         diagnostic_history.clear()
         latest_diagnostic = {}
+        asyncio.create_task(_retrain_all_ridge())
         return {"status": "ok", "mode": req.mode}
     except ImportError:
         raise HTTPException(status_code=404, detail="Simulation non disponible en mode production")
@@ -367,6 +371,23 @@ async def _cycle():
             }
 
     latest_sensors = sensor_list
+
+    # Sync latest_maintenance with real-time grey-box values every cycle
+    # (preserve Ridge predictions, update live sensor fields)
+    if latest_maintenance and latest_sensors:
+        sensor_by_key = {
+            (s['group_id'], s['mold_id']): s
+            for s in latest_sensors
+        }
+        for entry in latest_maintenance:
+            key = (entry['group_id'], entry['mold_id'])
+            live = sensor_by_key.get(key)
+            if live:
+                entry['delta_T_calcaire'] = live.get('delta_T_calcaire')
+                entry['epaisseur_mm']     = live.get('epaisseur_mm')
+                entry['urgence']          = live.get('urgence', 'OK')
+                entry['degradation_pct']  = live.get('degradation_pct', 0)
+
     latest_diagnostic = {
         'anomaly_detected': anomaly_result['anomaly_detected'],
         'anomaly_score':    anomaly_result['anomaly_score'],
@@ -549,7 +570,7 @@ async def _retrain_all_ridge():
         for (gid, mid) in config.SENSOR_MAP.keys():
             key         = (gid, mid)
             cal         = calibration_temps.get(key, config.T_HEATER - 1.5)
-            delta_T_max = max((config.T_HEATER - config.T_MOLD_CRITICAL) - (config.T_HEATER - cal), 0.1)
+            delta_T_max = max(cal - config.T_MOLD_WARNING, 0.1)   # planifier qd la tendance atteint 42°C (seuil alerte)
 
             predictor = ridge_models.get(key)
             if predictor is None:

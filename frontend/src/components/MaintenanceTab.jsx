@@ -426,7 +426,9 @@ export default function MaintenanceTab({ maintenance = [] }) {
 
   const mostUrgent = useMemo(() => {
     if (!maintenance.length) return null
-    return [...maintenance].sort(
+    const withDate = maintenance.filter(m => m.predicted_date != null)
+    const pool = withDate.length ? withDate : maintenance
+    return [...pool].sort(
       (a, b) => (URGENCY_ORDER[b.urgence]??0) - (URGENCY_ORDER[a.urgence]??0)
     )[0]
   }, [maintenance])
@@ -434,14 +436,20 @@ export default function MaintenanceTab({ maintenance = [] }) {
   const [selectedMold, setSelectedMold] = React.useState(null)
   const calendarMold = selectedMold ?? mostUrgent
 
-  // Un seul debimetre installe sur Heater 1 / Moule 1
+  const totalMolds = 6
+  const allGroupIds = [1, 2, 3, 4]
+
   const groups = useMemo(() => {
     const map = {}
     if (!maintenance.length) {
-      map[1] = [{
-        mold_id: 1, group_id: 1, position: 'gauche',
-        urgence: 'OK', degradation_pct: 0,
-      }]
+      allGroupIds.forEach(gid => {
+        const mids = gid === 1 ? [1] : gid === 4 ? [1] : [1, 2]
+        map[gid] = mids.map(mid => ({
+          mold_id: mid, group_id: gid,
+          position: mid === 1 ? 'gauche' : 'droite',
+          urgence: 'OK', degradation_pct: 0,
+        }))
+      })
       return map
     }
     maintenance.forEach(m => {
@@ -451,7 +459,7 @@ export default function MaintenanceTab({ maintenance = [] }) {
     return map
   }, [maintenance])
 
-  const criticalCount = maintenance.filter(m => SHOW_CI.has(m.urgence)).length
+  const criticalCount = maintenance.filter(m => SHOW_CI.has(m.urgence) && m.predicted_date != null).length
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }} className="fade-in">
@@ -464,7 +472,7 @@ export default function MaintenanceTab({ maintenance = [] }) {
         {[
           { label: 'Modèle',              value: 'Grey-box + Ridge + Bootstrap',  color: 'var(--text-primary)' },
           { label: 'Intervalle IC',        value: '90% (percentiles 5-95)',        color: 'var(--text-primary)' },
-          { label: 'Moules à maintenir',  value: `${criticalCount} / ${maintenance.length || 1}`, color: '#f97316' },
+          { label: 'Moules à maintenir',  value: `${criticalCount} / ${maintenance.length || totalMolds}`, color: '#f97316' },
         ].map(item => (
           <div key={item.label}>
             <div style={{

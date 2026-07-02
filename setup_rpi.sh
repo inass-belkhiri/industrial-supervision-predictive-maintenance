@@ -455,8 +455,8 @@ fi
 echo ""
 echo "Acces reseau :"
 sleep 2
-if curl -s --max-time 3 http://localhost:8001 > /dev/null 2>&1; then
-  ok "Backend accessible sur http://localhost:8001"
+if curl -s --max-time 3 http://localhost:8000 > /dev/null 2>&1; then
+  ok "Backend accessible sur http://localhost:8000"
 else
   warn "Backend non accessible encore -- attendre 10 secondes et reessayer"
 fi

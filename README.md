@@ -4,7 +4,7 @@
   ***Projet de Fin d'Études 2025-2026 - ENSA Kénitra***
 
 ## Vue d'Ensemble
-Ce projet, réalisé dans le cadre du Projet de Fin d'Études (PFE) 2025-2026 à l'ENSA Kénitra, a été développé pour Yazaki Morocco. L'objectif principal est de superviser la ligne de production de mousse (foaming), qui comprend 12 moules, afin de détecter et diagnostiquer les causes de baisse de température. Le système intègre des technologies de machine learning et de soft sensing pour une maintenance prédictive.
+Ce projet, réalisé dans le cadre du Projet de Fin d'Études (PFE) 2025-2026 à l'ENSA Kénitra, a été développé pour Yazaki Morocco Kénitra. L'objectif principal est de superviser la ligne de production de mousse (foaming), qui comprend 6 moules, afin de détecter et diagnostiquer les causes de baisse de température. Le système intègre des technologies de machine learning et de soft sensing pour l'estimation de l'épaisseur de calcaire et une maintenance prédictive de ce dernier.
 
 ## Fonctionnalités Principales
 
@@ -22,12 +22,13 @@ Le projet est un système de supervision thermique avancé qui passe d'une simpl
 
 - **Alertes**
   - Notifications email
-  - Tableau de bord temps réel
+  - Notifications par telegram
+  - Alertes visuelles sur tableau de bord temps réel
 
 - **Machine Learning**
-  - Détection d'anomalies
-  - Classification des causes
-  - Prédiction maintenance
+  - Détection d'anomalies par Isolation Forest
+  - Classification des causes par Random Forest
+  - Prédiction maintenance par Ridge regressor et intervalle de confiance par Bootstrap 
 
 
 ## Architecture Technique
@@ -35,8 +36,7 @@ L'architecture du projet est structurée en trois niveaux distincts :
 
 - **Niveau 1** : Acquisition Physique
 
-Composé d'un Raspberry Pi 4 8GB qui interroge les 12 capteurs de température et 3 capteurs de débit via Modbus RTU.
-
+Composé d'un Raspberry Pi 4 8GB qui interroge les 6 modules de transmissions RS485/Modbus RTU liées à 6 sondes PT100 
 - **Niveau 2** : Traitement et Machine Learning
 
      - **Isolation Forest** pour la détection d'anomalies (contamination 5%, 200 estimators).
@@ -239,24 +239,12 @@ pytest
 
 | Service | Adresse |
 |:--------|:--------|
-| Backend API | http://localhost:8000 |
-| Frontend | http://localhost:5173 |
-| Frontend (depuis PC) | http://IP_RPI:5173 |
+| Backend API | http://localhost:8001 |
+| Frontend | http://localhost:5174 |
+| Frontend (depuis PC) | http://IP_RPI:5174 |
 | InfluxDB | http://localhost:8086 |
-| API Documentation (FastAPI) | http://localhost:8000/docs |
+| API Documentation (FastAPI) | http://localhost:8001/docs |
 
-## Documentation
-**Architecture détaillée (ARCHITECTURE.md)** : Document décrivant l'architecture complète du système, les choix technologiques, les flux de données et l'organisation des composants.
-
-**API Reference (API.md)** : Documentation complète des endpoints disponibles :
-
-- Endpoints REST : routes pour la configuration, l'historique des données, les diagnostics, les alertes
-
-- Endpoints WebSocket : format des messages échangés en temps réel
-
-- Modèles de données : structure des objets (températures, débits, diagnostics, alertes)
-
-- Codes de réponse et gestion des erreurs
 
 ## Auteurs
 Inass BELKHIRI
